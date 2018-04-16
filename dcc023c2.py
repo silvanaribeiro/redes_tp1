@@ -36,5 +36,22 @@ def main(argv):
 
 		print (IP, PORT, INPUT, OUTPUT)
 
+
+def readFile(input):
+	with open(input) as f:
+		while True:
+			c = f.read(1)
+			if not c:
+				print("End of file")
+				break
+			print("Read a character:",c, encode16(c))
+			print(decode16(encode16(c)))
+
+def encode16(c):
+	return base64.b16encode(c.encode('ascii'))
+
+def decode16(c):
+	return base64.b16decode(c.decode('ascii'))
+
 if __name__ == "__main__":
 	main(sys.argv[1:])
