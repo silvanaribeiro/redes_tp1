@@ -2,26 +2,32 @@
 
 import socket 
 import struct
+import sys, getopt
 
 def main(argv):
-	HOST = None
+	opts = None
+	args = None
 	PORT = None
-	texto = None
-	chave = None
-	
+	IP = None
+	OUTPUT = None
+	INPUT = None
 	try:
-		opts, args = getopt.getopt(argv, "p:")
-		print opts
-		print args
+		opts, args = getopt.getopt(argv, "s:c:")
+		print(opts)
+		print(args)
 	except getopt.GetoptError:
-		print "dcc023c2.py -s <PORT> <INPUT> <OUTPUT>"
-		print "dcc023c2.py -c <IP>:<PORT> <INPUT> <OUTPUT>"
+		print("dcc023c2.py -s <PORT> <INPUT> <OUTPUT>")
+		print("dcc023c2.py -c <IP>:<PORT> <INPUT> <OUTPUT>")
 	for opt, arg in opts:
 		if opt == '-s':
-			print arg
+			PORT = arg
 		elif opt == '-c':
-			print arg
+			IP, PORT = arg.split(':')
+			
+		INPUT = args[0]
+		OUTPUT = args[1]
 		
+		print (IP, PORT, INPUT, OUTPUT)
 	
 if __name__ == "__main__":
 	main(sys.argv[1:])
