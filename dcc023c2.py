@@ -38,7 +38,14 @@ def readFile(input):
 			if not c:
 				print("End of file")
 				break
-			print("Read a character:",c, base64.b16encode(c.encode('ascii')))
+			print("Read a character:",c, encode16(c))
+			print(decode16(encode16(c)))
+			
+def encode16(c):
+	return base64.b16encode(c.encode('ascii'))
+	
+def decode16(c):
+	return base64.b16decode(c.decode('ascii'))
 	
 if __name__ == "__main__":
 	main(sys.argv[1:])
