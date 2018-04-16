@@ -3,6 +3,7 @@
 import socket 
 import struct
 import sys, getopt
+import base64
 
 def main(argv):
 	opts = None
@@ -13,8 +14,6 @@ def main(argv):
 	INPUT = None
 	try:
 		opts, args = getopt.getopt(argv, "s:c:")
-		print(opts)
-		print(args)
 	except getopt.GetoptError:
 		print("dcc023c2.py -s <PORT> <INPUT> <OUTPUT>")
 		print("dcc023c2.py -c <IP>:<PORT> <INPUT> <OUTPUT>")
@@ -27,7 +26,19 @@ def main(argv):
 		INPUT = args[0]
 		OUTPUT = args[1]
 		
+		readFile(INPUT)
+		
 		print (IP, PORT, INPUT, OUTPUT)
+		
+		
+def readFile(input):
+	with open(input) as f:
+		while True:
+			c = f.read(1)
+			if not c:
+				print("End of file")
+				break
+			print("Read a character:",c, base64.b16encode(c.encode('ascii')))
 	
 if __name__ == "__main__":
 	main(sys.argv[1:])
