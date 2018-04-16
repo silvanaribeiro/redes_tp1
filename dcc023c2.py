@@ -3,6 +3,7 @@
 import socket
 import struct
 import sys, getopt
+import base64
 
 class Quadro:
 	sync = None
@@ -21,8 +22,6 @@ def main(argv):
 	INPUT = None
 	try:
 		opts, args = getopt.getopt(argv, "s:c:")
-		print(opts)
-		print(args)
 	except getopt.GetoptError:
 		print("dcc023c2.py -s <PORT> <INPUT> <OUTPUT>")
 		print("dcc023c2.py -c <IP>:<PORT> <INPUT> <OUTPUT>")
