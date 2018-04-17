@@ -50,7 +50,10 @@ def main(argv):
 
 		INPUT = args[0]
 		OUTPUT = args[1]
-
+		if IP:
+			startClient(IP, PORT, INPUT, OUTPUT)
+		else:
+		
 		print (IP, PORT, INPUT, OUTPUT)
 
 		
@@ -98,6 +101,43 @@ def checksum(msg):
 def splitTwoByTwo(val):
 	args = [iter(val)] * 2
 	return [''.join(k) for k in zip_longest(*args)]
+	
+def startClient(IP, PORT, INPUT, OUTPUT):
+	tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # criando socket)
+	tcp.setsockopt(socket.SOL_SOCKET, socket.SO_RCVTIMEO, 15)	
+	dest = (str(IP), int(PORT)) 
+	tcp.connect(dest) # Conectando
+	s = struct.Struct('>I')
+	# TODO do this for all packages
+	# TODO send package
+	# tcp.send().encode('ascii')) # Enviando texto ao servidor codificado pela cifra de Cesar
+	# TODO wait for response, resend if not ok
+	# ack = tcp.recv().decode('ascii')    # Recebendo resposta do servidor
+	tcp.close()	
+	
+	
+def startServer(PORT, INPUT, OUTPUT):
+	tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)	
+	tcp.setsockopt(socket.SOL_SOCKET, socket.SO_RCVTIMEO, 15)			
+	orig = ('', int(PORT)) 
+	tcp.bind(orig) 
+	tcp.listen(5) 
+	while 1:
+		con, client = tcp.accept() # aceitando a conexao
+				
+		t=threading.Thread(target=handler, args=(con, client))
+		t.start() # iniciando nova thread que recebe dados do cliente
+	tcp.close()
+			
+
+def handler(con, client):
+	s = struct.Struct('>I')
+	#TODO receive packages till its done
+	#texto = con.recv().decode('ascii') # Recebe o pacote
+	#TODO checksum
+	#TODO send ack if checksum ok
+	#con.send() # Envia ack
+	con.close()
 
 	
 if __name__ == "__main__":
