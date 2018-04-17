@@ -5,13 +5,20 @@ import struct
 import sys, getopt
 import base64
 
+# REFERENCES:
+# https://www.rapidtables.com/convert/number/ascii-hex-bin-dec-converter.html
+
+
 class Quadro:
 	sync = None
-	length = None
+	length_dados = None
 	chksum = None
 	ID = None
 	flags = None
 	dados = None
+	# maxtam_quadro =
+
+
 
 def main(argv):
 	opts = None
@@ -35,6 +42,8 @@ def main(argv):
 		OUTPUT = args[1]
 
 		print (IP, PORT, INPUT, OUTPUT)
+		# 131098
+		# readFile(INPUT)
 
 
 def readFile(input):
@@ -45,7 +54,8 @@ def readFile(input):
 				print("End of file")
 				break
 			print("Read a character:",c, encode16(c))
-			print(decode16(encode16(c)))
+			print("Length of character:",len(c))
+			# print(decode16(encode16(c)))
 
 def encode16(c):
 	return base64.b16encode(c.encode('ascii'))
