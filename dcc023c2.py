@@ -52,7 +52,6 @@ def main(argv):
 
 		INPUT = args[0]
 		OUTPUT = args[1]
-		print (IP, PORT, INPUT, OUTPUT)
 		if IP:
 			startClient(IP, PORT, INPUT, OUTPUT)
 		else:
@@ -67,14 +66,6 @@ def decodeMessage(msg):
 		decoded += str(decode16(byte))
 	return decoded
 
-
-# def readFile(input):
-# 	with open(input) as f:
-# 		while True:
-# 			c = f.read(1)
-# 			if not c:
-# 				print("End of file")
-# 				break
 
 def createFrames(input):
 	frame_list = []
@@ -95,8 +86,7 @@ def createFrames(input):
 			length += 1
 			if sys.getsizeof(data) == 128:
 				flags = 0
-				# print ("DATA EM BYTES:", data.encode())
-				frame = Frame(sync,length, 0, ID, flags, data)
+				frame = Frame(sync, length, 0, ID, flags, data)
 				frame.calc_chksum()
 				frame_list.append(frame)
 				new_frame = True
@@ -122,7 +112,7 @@ def carry_around_add(a, b):
     return(c &0xffff)+(c >>16)
 
 def checksum(msg):
-    s =0
+    s = 0
     for i in range(0, len(msg) - 1, 2):
         w =(msg[i])+((msg[i+1])<<8)
         s = carry_around_add(s, w)
@@ -141,19 +131,44 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 	#creating frames
 	frames = createFrames(INPUT)
 	print (len(frames))
+	for frame in frames:
+		print(frame.sync)
+		print(frame.length)
+		print(frame.chksum)
+		print(frame.ID)
+		print(frame.flags)
+		print(frame.data)
+		print('--------')
+		
 	dest = (str(IP), int(PORT))
 	tcp.connect(dest) # Conectando
 	s = struct.Struct('>I')
-	# TODO do this for all packages
-	# TODO send package
-	# for f in frames:
-
-
-	# tcp.send().encode('ascii')) # Enviando texto ao servidor codificado em base16
-	# TODO wait for response, resend if not ok
-	# ack = tcp.recv().decode('ascii')    # Recebendo resposta do servidor
+	
+	
+	count = 0
+	next = False
+	
+	sendFrame(frames[count])
+	count+=count
+	while next and count < len(frames):
+		next = False
+		sendFrame(frames[count])
+		ack = decode16(tcp.recv(int(4)))
+		if ack == frames[count].ID:
+			next = True
+			count += count
+	
 	tcp.close()
 
+def sendFrame(frame):
+	tcp.send(encode16(frame.sync))
+	tcp.send(encode16(frame.length))
+	tcp.send(encode16(frame.chksum))
+	tcp.send(encode16(frame.ID))
+	tcp.send(encode16(frame.flags))
+	tcp.send(encode16(frame.data))
+	
+	
 
 def startServer(PORT, INPUT, OUTPUT):
 	tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -174,10 +189,20 @@ def startServer(PORT, INPUT, OUTPUT):
 def handler(con, client):
 	s = struct.Struct('>I')
 	#TODO receive packages till its done
-	#texto = con.recv().decode('ascii') # Recebe o pacote
-	#TODO checksum
-	#TODO send ack if checksum ok
-	#con.send() # Envia ack
+	sync = "dcc023c2dcc023c2"
+	texto = decode16(con.recv()) # Recebe o pacote
+	if sync == texto:
+		length = decode16(con.recv())
+		chksum = decode16(con.recv())
+		ID = decode16(con.recv())
+		flags = decode16(con.recv())
+		dados = decode16(con.recv())
+		frame = Frame(sync, length, chksum, ID, flags, dados)
+		msg = str(sync) + str(length) + str(0000)
+		msg += str(self.ID) + str(self.flags) + str(self.data)
+		result_check = checksum(msg)
+		if result_check == chksum:
+			con.send(encode16(ID))
 	con.close()
 
 
