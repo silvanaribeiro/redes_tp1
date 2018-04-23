@@ -152,7 +152,7 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 	count+=count
 	while next and count < len(frames):
 		next = False
-		sendFrame(frames[count])
+		sendFrameClient(tcp, frames[count])
 		ack = decode16(tcp.recv(int(4)))
 		if ack == frames[count].ID:
 			next = True
@@ -160,13 +160,21 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 	
 	tcp.close()
 
-def sendFrame(frame):
+def sendFrameClient(tcp, frame):
 	tcp.send(encode16(frame.sync))
 	tcp.send(encode16(frame.length))
 	tcp.send(encode16(frame.chksum))
 	tcp.send(encode16(frame.ID))
 	tcp.send(encode16(frame.flags))
 	tcp.send(encode16(frame.data))
+	
+def sendFrameServer(con, frame):
+	con.send(encode16(frame.sync))
+	con.send(encode16(frame.length))
+	con.send(encode16(frame.chksum))
+	con.send(encode16(frame.ID))
+	con.send(frame.flags)
+	con.send(encode16(frame.data))
 	
 	
 
@@ -180,7 +188,6 @@ def startServer(PORT, INPUT, OUTPUT):
 	tcp.listen(5)
 	while 1:
 		con, client = tcp.accept() # aceitando a conexao
-
 		t=threading.Thread(target=handler, args=(con, client))
 		t.start() # iniciando nova thread que recebe dados do cliente
 	tcp.close()
@@ -188,7 +195,6 @@ def startServer(PORT, INPUT, OUTPUT):
 
 def handler(con, client):
 	s = struct.Struct('>I')
-	#TODO receive packages till its done
 	sync = "dcc023c2dcc023c2"
 	texto = decode16(con.recv()) # Recebe o pacote
 	if sync == texto:
@@ -202,7 +208,9 @@ def handler(con, client):
 		msg += str(self.ID) + str(self.flags) + str(self.data)
 		result_check = checksum(msg)
 		if result_check == chksum:
-			con.send(encode16(ID))
+			frame = Frame(sync, 0, 0, ID, 0x80, '')
+			frame.calc_chksum()
+			sendFrameServer(con, frame)
 	con.close()
 
 
