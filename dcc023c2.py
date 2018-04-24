@@ -74,6 +74,7 @@ def createFrames(input):
 	sync = "dcc023c2dcc023c2"
 	length = 0
 	data = ""
+	flags = 0
 	with open(input) as f:
 		while True:
 			if new_frame:
@@ -84,8 +85,7 @@ def createFrames(input):
 			c = f.read(1)
 			data += c.strip()
 			length += 1
-			if sys.getsizeof(data) == 128:
-				flags = 0
+			if len(data) == 128:
 				frame = Frame(sync, length, 0, ID, flags, data)
 				frame.calc_chksum()
 				frame_list.append(frame)
@@ -147,30 +147,44 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 
 
 	count = 0
-	next = False
-
-	sendFrame(frames[count])
-	count+=count
+	next = True
+	#enviando a quantidade de quadros
+	tcp.send(s.pack(int(len(frames)))
+	
 	while next and count < len(frames):
+		sendFrameClient(frames[count])
 		next = False
-		sendFrameClient(tcp, frames[count])
-		ack = decode16(tcp.recv(int(4)))
-		if ack == frames[count].ID:
-			next = True
-			count += count
+		
+		sync = "dcc023c2dcc023c2"
+		# Recebe o pacote de ack
+		texto = con.recv(8) 
+		if sync == texto:
+			length = decode16(con.recv(2))
+			chksum = decode16(con.recv(2))
+			ID = decode16(con.recv(1))
+			flags = con.recv(1)
+			dados = decode16(con.recv(int(length)))
+			frame = Frame(sync, length, chksum, ID, flags, dados)
+			msg = str(sync) + str(length) + str(0000)
+			msg += str(self.ID) + str(self.flags) + str(self.data)
+			result_check = checksum(msg)
+			# se receber o ack corretamente, envia o proximo frame
+			if result_check == chksum and length == 0 and flags = 0x80 and ID == frames[count].ID :
+				next = True
+				count+=count
 
 	tcp.close()
 
 def sendFrameClient(tcp, frame):
-	tcp.send(encode16(frame.sync))
+	tcp.send(frame.sync)
 	tcp.send(encode16(frame.length))
 	tcp.send(encode16(frame.chksum))
 	tcp.send(encode16(frame.ID))
-	tcp.send(encode16(frame.flags))
+	tcp.send(frame.flags)
 	tcp.send(encode16(frame.data))
 
 def sendFrameServer(con, frame):
-	con.send(encode16(frame.sync))
+	con.send(frame.sync)
 	con.send(encode16(frame.length))
 	con.send(encode16(frame.chksum))
 	con.send(encode16(frame.ID))
@@ -182,38 +196,53 @@ def sendFrameServer(con, frame):
 def startServer(PORT, INPUT, OUTPUT):
 	tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 15)
-	# nao funciona no mac hihihihihi
-	# tcp.setsockopt(socket.SOL_SOCKET, socket.SO_RCVTIMEO, 15)
+
 	orig = ('', int(PORT))
 	tcp.bind(orig)
 	tcp.listen(5)
 	while 1:
 		con, client = tcp.accept() # aceitando a conexao
-		t=threading.Thread(target=handler, args=(con, client))
+		t=threading.Thread(target=handler, args=(con, client, OUTPUT))
 		t.start() # iniciando nova thread que recebe dados do cliente
 	tcp.close()
 
 
-def handler(con, client):
+def handler(con, client, OUTPUT):
 	s = struct.Struct('>I')
-	sync = "dcc023c2dcc023c2"
-	texto = decode16(con.recv()) # Recebe o pacote
-	if sync == texto:
-		length = decode16(con.recv())
-		chksum = decode16(con.recv())
-		ID = decode16(con.recv())
-		flags = decode16(con.recv())
-		dados = decode16(con.recv())
-		frame = Frame(sync, length, chksum, ID, flags, dados)
-		msg = str(sync) + str(length) + str(0000)
-		msg += str(self.ID) + str(self.flags) + str(self.data)
-		result_check = checksum(msg)
-		if result_check == chksum:
-			frame = Frame(sync, 0, 0, ID, 0x80, '')
-			frame.calc_chksum()
-			sendFrameServer(con, frame)
-	con.close()
+	qtd_frames = s.unpack(con.recv(4))[0]
+	frames = []
+	oldID = 1
+	countFrames = 0
+	while countFrames < qtd_frames:
+		sync = "dcc023c2dcc023c2"
+		texto = con.recv(8) # Recebe o pacote
 
+		if sync == texto:
+			length = decode16(con.recv(2))
+			chksum = decode16(con.recv(2))
+			ID = decode16(con.recv(1))
+			flags = decode16(con.recv(1))
+			dados = decode16(con.recv(int(length)))
+			frame = Frame(sync, length, chksum, ID, flags, dados)
+			msg = str(sync) + str(length) + str(0000)
+			msg += str(self.ID) + str(self.flags) + str(self.data)
+			result_check = checksum(msg)
+			if result_check == chksum and ID != oldID:
+				frames.append(frame)
+				oldID = ID
+				frame = Frame(sync, 0, 0, ID, 0x80, '')
+				frame.calc_chksum()
+				countFrames += countFrames
+				sendFrameServer(con, frame)
+		con.close()
+	writeFile(OUTPUT, frames)
+
+def writeFile(output, frames):
+	file = open(output,"w") 
+	for frames in frame:
+		file.write(frame.data) 
+
+file.close() 
 
 if __name__ == "__main__":
 	main(sys.argv[1:])
