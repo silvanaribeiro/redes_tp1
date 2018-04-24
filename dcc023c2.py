@@ -70,7 +70,7 @@ def decodeMessage(msg):
 def createFrames(input):
 	frame_list = []
 	new_frame = True
-	ID = 0
+	ID = 1
 	sync = "dcc023c2dcc023c2"
 	length = 0
 	data = ""
@@ -78,7 +78,7 @@ def createFrames(input):
 		while True:
 			if new_frame:
 				data = ""
-				ID += 1
+				ID = not ID
 				new_frame = False
 
 			c = f.read(1)
@@ -90,6 +90,7 @@ def createFrames(input):
 				frame.calc_chksum()
 				frame_list.append(frame)
 				new_frame = True
+				length = 0
 
 			if not c:
 				print("End of file")
@@ -139,15 +140,15 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 		print(frame.flags)
 		print(frame.data)
 		print('--------')
-		
+
 	dest = (str(IP), int(PORT))
 	tcp.connect(dest) # Conectando
 	s = struct.Struct('>I')
-	
-	
+
+
 	count = 0
 	next = False
-	
+
 	sendFrame(frames[count])
 	count+=count
 	while next and count < len(frames):
@@ -157,7 +158,7 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 		if ack == frames[count].ID:
 			next = True
 			count += count
-	
+
 	tcp.close()
 
 def sendFrameClient(tcp, frame):
@@ -167,7 +168,7 @@ def sendFrameClient(tcp, frame):
 	tcp.send(encode16(frame.ID))
 	tcp.send(encode16(frame.flags))
 	tcp.send(encode16(frame.data))
-	
+
 def sendFrameServer(con, frame):
 	con.send(encode16(frame.sync))
 	con.send(encode16(frame.length))
@@ -175,8 +176,8 @@ def sendFrameServer(con, frame):
 	con.send(encode16(frame.ID))
 	con.send(frame.flags)
 	con.send(encode16(frame.data))
-	
-	
+
+
 
 def startServer(PORT, INPUT, OUTPUT):
 	tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
