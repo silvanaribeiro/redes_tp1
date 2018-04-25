@@ -124,6 +124,7 @@ def splitTwoByTwo(val):
 	return [''.join(k) for k in zip_longest(*args)]
 
 def startClient(IP, PORT, INPUT, OUTPUT):
+	print ("Iniciando o envio de frames")
 	tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # criando socket)
 	tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 15)
 	tcp.settimeout(1) # timeout em segundos
@@ -133,14 +134,14 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 	#creating frames
 	frames = createFrames(INPUT)
 	print (len(frames))
-	for frame in frames:
-		print(frame.sync)
-		print(frame.length)
-		print(frame.chksum)
-		print(frame.ID)
-		print(frame.flags)
-		print(frame.data)
-		print('--------')
+	# for frame in frames:
+	# 	print(frame.sync)
+	# 	print(frame.length)
+	# 	print(frame.chksum)
+	# 	print(frame.ID)
+	# 	print(frame.flags)
+	# 	print(frame.data)
+	# 	print('--------')
 
 	dest = (str(IP), int(PORT))
 	tcp.connect(dest) # Conectando
@@ -152,21 +153,22 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 	#enviando a quantidade de quadros
 	tcp.send(s.pack(int(len(frames))))
 
+	# while(next and count < len(frames)):
 	while(next and count < len(frames)):
 		sendFrameClient(tcp, frames[count])
-		next = False
+		# next = False
 
 		sync = 3703579586
 		# Recebe o pacote de ack
 		try:
 			s = struct.Struct('>I')
-			texto = s.unpack(con.recv(4))[0]
-			texto2 = s.unpack(con.recv(4))[0]
-			if sync == texto && sync == texto2:
-				length = decode16(con.recv(2))
-				chksum = decode16(con.recv(2))
+			texto = s.unpack(tcp.recv(4))[0]
+			texto2 = s.unpack(tcp.recv(4))[0]
+			if sync == texto and sync == texto2:
+				length = decode16(tcp.recv(2))
+				chksum = decode16(tcp.recv(2))
 				ID = decode16(con.recv(1))
-				flags = con.recv(1)
+				flags = tcp.recv(1)
 				dados = decode16(con.recv(int(length)))
 				frame = Frame(sync, length, chksum, ID, flags, dados)
 				msg = str(sync) + str(sync) + str(length) + str(0000)
@@ -174,7 +176,7 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 				result_check = checksum(msg)
 				# se receber o ack corretamente, envia o proximo frame
 				if result_check == chksum and length == 0 and flags == 0x80 and ID == frames[count].ID :
-					next = True
+					# next = True
 					count+=count
 		except socket.timeout:
 			print ("Reenviando frame...")
@@ -186,10 +188,15 @@ def sendFrameClient(tcp, frame):
 
 	tcp.send(s.pack(int(frame.sync)))
 	tcp.send(s.pack(int(frame.sync)))
-	tcp.send(encode16(frame.length))
-	tcp.send(encode16(frame.chksum))
-	tcp.send(encode16(frame.ID))
-	tcp.send(frame.flags)
+	tcp.send(encode16(str(frame.length)))
+	tcp.send(encode16(str(frame.chksum)))
+	tcp.send(encode16(str(frame.ID)))
+	if frame.ID:
+		ID = 1
+	else:
+		ID = 0
+	tcp.send(encode16(str(ID)))
+	tcp.send(encode16(str(frame.flags)))
 	tcp.send(encode16(frame.data))
 
 def sendFrameServer(con, frame):
@@ -198,7 +205,6 @@ def sendFrameServer(con, frame):
 	tcp.send(s.pack(int(frame.sync)))
 	con.send(encode16(frame.length))
 	con.send(encode16(frame.chksum))
-	con.send(encode16(frame.ID))
 	con.send(frame.flags)
 	con.send(encode16(frame.data))
 
@@ -229,7 +235,7 @@ def handler(con, client, OUTPUT):
 		sync = 3703579586
 		texto = s.unpack(con.recv(4))[0]
 		texto2 = s.unpack(con.recv(4))[0]
-		if sync == texto && sync == texto2:
+		if sync == texto and sync == texto2:
 			length = decode16(con.recv(2))
 			chksum = decode16(con.recv(2))
 			ID = decode16(con.recv(1))
