@@ -149,9 +149,9 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 	count = 0
 	next = True
 	#enviando a quantidade de quadros
-	tcp.send(s.pack(int(len(frames)))
+	tcp.send(s.pack(int(len(frames))))
 	
-	while next and count < len(frames):
+	while(next and count < len(frames)):
 		sendFrameClient(frames[count])
 		next = False
 		
@@ -169,7 +169,7 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 			msg += str(self.ID) + str(self.flags) + str(self.data)
 			result_check = checksum(msg)
 			# se receber o ack corretamente, envia o proximo frame
-			if result_check == chksum and length == 0 and flags = 0x80 and ID == frames[count].ID :
+			if result_check == chksum and length == 0 and flags == 0x80 and ID == frames[count].ID :
 				next = True
 				count+=count
 
@@ -241,8 +241,7 @@ def writeFile(output, frames):
 	file = open(output,"w") 
 	for frames in frame:
 		file.write(frame.data) 
-
-file.close() 
+	file.close() 
 
 if __name__ == "__main__":
 	main(sys.argv[1:])
