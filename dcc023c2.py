@@ -71,7 +71,7 @@ def createFrames(input):
 	frame_list = []
 	new_frame = True
 	ID = 1
-	sync = "dcc023c2dcc023c2"
+	sync = 3703579586
 	length = 0
 	data = ""
 	flags = 0
@@ -152,10 +152,10 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 	tcp.send(s.pack(int(len(frames))))
 	
 	while(next and count < len(frames)):
-		sendFrameClient(frames[count])
+		sendFrameClient(tcp, frames[count])
 		next = False
 		
-		sync = "dcc023c2dcc023c2"
+		sync = 3703579586
 		# Recebe o pacote de ack
 		texto = con.recv(8) 
 		if sync == texto:
@@ -176,7 +176,9 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 	tcp.close()
 
 def sendFrameClient(tcp, frame):
-	tcp.send(frame.sync)
+	s = struct.Struct('>I')
+	
+	tcp.send(s.pack(int(frame.sync)))
 	tcp.send(encode16(frame.length))
 	tcp.send(encode16(frame.chksum))
 	tcp.send(encode16(frame.ID))
