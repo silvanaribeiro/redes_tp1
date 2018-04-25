@@ -28,7 +28,7 @@ class Frame:
 		self.data = data
 
 	def calc_chksum(self):
-		msg = str(self.sync) + str(self.length) + str(self.chksum)
+		msg = str(self.sync) + str(self.sync) + str(self.length) + str(self.chksum)
 		msg += str(self.ID) + str(self.flags) + str(self.data)
 		self.chksum = checksum(msg.encode())
 
@@ -157,15 +157,17 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 		
 		sync = 3703579586
 		# Recebe o pacote de ack
-		texto = con.recv(8) 
-		if sync == texto:
+		s = struct.Struct('>I')
+		texto = s.unpack(con.recv(4))[0] 
+		texto2 = s.unpack(con.recv(4))[0]
+		if sync == texto && sync == texto2:
 			length = decode16(con.recv(2))
 			chksum = decode16(con.recv(2))
 			ID = decode16(con.recv(1))
 			flags = con.recv(1)
 			dados = decode16(con.recv(int(length)))
 			frame = Frame(sync, length, chksum, ID, flags, dados)
-			msg = str(sync) + str(length) + str(0000)
+			msg = str(sync) + str(sync) + str(length) + str(0000)
 			msg += str(self.ID) + str(self.flags) + str(self.data)
 			result_check = checksum(msg)
 			# se receber o ack corretamente, envia o proximo frame
@@ -179,6 +181,7 @@ def sendFrameClient(tcp, frame):
 	s = struct.Struct('>I')
 	
 	tcp.send(s.pack(int(frame.sync)))
+	tcp.send(s.pack(int(frame.sync)))
 	tcp.send(encode16(frame.length))
 	tcp.send(encode16(frame.chksum))
 	tcp.send(encode16(frame.ID))
@@ -186,7 +189,9 @@ def sendFrameClient(tcp, frame):
 	tcp.send(encode16(frame.data))
 
 def sendFrameServer(con, frame):
-	con.send(frame.sync)
+	s = struct.Struct('>I')
+	tcp.send(s.pack(int(frame.sync)))
+	tcp.send(s.pack(int(frame.sync)))
 	con.send(encode16(frame.length))
 	con.send(encode16(frame.chksum))
 	con.send(encode16(frame.ID))
@@ -216,10 +221,11 @@ def handler(con, client, OUTPUT):
 	oldID = 1
 	countFrames = 0
 	while countFrames < qtd_frames:
-		sync = "dcc023c2dcc023c2"
-		texto = con.recv(8) # Recebe o pacote
-
-		if sync == texto:
+		s = struct.Struct('>I')
+		sync = 3703579586
+		texto = s.unpack(con.recv(4))[0] 
+		texto2 = s.unpack(con.recv(4))[0]
+		if sync == texto && sync == texto2:
 			length = decode16(con.recv(2))
 			chksum = decode16(con.recv(2))
 			ID = decode16(con.recv(1))
