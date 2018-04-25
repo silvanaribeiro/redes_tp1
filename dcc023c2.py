@@ -106,7 +106,8 @@ def encode16(c):
 	return base64.b16encode(c.encode('ascii'))
 
 def decode16(c):
-	return str(base64.b16decode(c.encode('utf-8')))
+	print ("c:", c)
+	return str(base64.b16decode(c))
 
 def carry_around_add(a, b):
     c = a + b
@@ -190,11 +191,12 @@ def sendFrameClient(tcp, frame):
 	tcp.send(s.pack(int(frame.sync)))
 	tcp.send(encode16(str(frame.length)))
 	tcp.send(encode16(str(frame.chksum)))
-	tcp.send(encode16(str(frame.ID)))
+	# tcp.send(encode16(str(frame.ID)))
 	if frame.ID:
 		ID = 1
 	else:
 		ID = 0
+	# print ("ID COM ENCODE",encode16(str(ID)) )
 	tcp.send(encode16(str(ID)))
 	tcp.send(encode16(str(frame.flags)))
 	tcp.send(encode16(frame.data))
