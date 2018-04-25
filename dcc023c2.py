@@ -126,6 +126,7 @@ def splitTwoByTwo(val):
 def startClient(IP, PORT, INPUT, OUTPUT):
 	tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # criando socket)
 	tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 15)
+	tcp.settimeout(1) # timeout em segundos
 	# nao funciona no mac hihihihihi
 	# tcp.setsockopt(socket.SOL_SOCKET, socket.SO_RCVTIMEO, 15)
 
@@ -150,36 +151,39 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 	next = True
 	#enviando a quantidade de quadros
 	tcp.send(s.pack(int(len(frames))))
-	
+
 	while(next and count < len(frames)):
 		sendFrameClient(tcp, frames[count])
 		next = False
-		
+
 		sync = 3703579586
 		# Recebe o pacote de ack
-		s = struct.Struct('>I')
-		texto = s.unpack(con.recv(4))[0] 
-		texto2 = s.unpack(con.recv(4))[0]
-		if sync == texto && sync == texto2:
-			length = decode16(con.recv(2))
-			chksum = decode16(con.recv(2))
-			ID = decode16(con.recv(1))
-			flags = con.recv(1)
-			dados = decode16(con.recv(int(length)))
-			frame = Frame(sync, length, chksum, ID, flags, dados)
-			msg = str(sync) + str(sync) + str(length) + str(0000)
-			msg += str(self.ID) + str(self.flags) + str(self.data)
-			result_check = checksum(msg)
-			# se receber o ack corretamente, envia o proximo frame
-			if result_check == chksum and length == 0 and flags == 0x80 and ID == frames[count].ID :
-				next = True
-				count+=count
+		try:
+			s = struct.Struct('>I')
+			texto = s.unpack(con.recv(4))[0]
+			texto2 = s.unpack(con.recv(4))[0]
+			if sync == texto && sync == texto2:
+				length = decode16(con.recv(2))
+				chksum = decode16(con.recv(2))
+				ID = decode16(con.recv(1))
+				flags = con.recv(1)
+				dados = decode16(con.recv(int(length)))
+				frame = Frame(sync, length, chksum, ID, flags, dados)
+				msg = str(sync) + str(sync) + str(length) + str(0000)
+				msg += str(self.ID) + str(self.flags) + str(self.data)
+				result_check = checksum(msg)
+				# se receber o ack corretamente, envia o proximo frame
+				if result_check == chksum and length == 0 and flags == 0x80 and ID == frames[count].ID :
+					next = True
+					count+=count
+		except socket.timeout:
+			print ("Reenviando frame...")
 
 	tcp.close()
 
 def sendFrameClient(tcp, frame):
 	s = struct.Struct('>I')
-	
+
 	tcp.send(s.pack(int(frame.sync)))
 	tcp.send(s.pack(int(frame.sync)))
 	tcp.send(encode16(frame.length))
@@ -223,7 +227,7 @@ def handler(con, client, OUTPUT):
 	while countFrames < qtd_frames:
 		s = struct.Struct('>I')
 		sync = 3703579586
-		texto = s.unpack(con.recv(4))[0] 
+		texto = s.unpack(con.recv(4))[0]
 		texto2 = s.unpack(con.recv(4))[0]
 		if sync == texto && sync == texto2:
 			length = decode16(con.recv(2))
@@ -246,10 +250,10 @@ def handler(con, client, OUTPUT):
 	writeFile(OUTPUT, frames)
 
 def writeFile(output, frames):
-	file = open(output,"w") 
+	file = open(output,"w")
 	for frames in frame:
-		file.write(frame.data) 
-	file.close() 
+		file.write(frame.data)
+	file.close()
 
 if __name__ == "__main__":
 	main(sys.argv[1:])
