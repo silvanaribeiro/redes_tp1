@@ -106,8 +106,7 @@ def encode16(c):
 	return base64.b16encode(c.encode('ascii'))
 
 def decode16(c):
-	print ("c:", c)
-	return str(base64.b16decode(c))
+	return base64.b16decode(c.decode('ascii'))
 
 def carry_around_add(a, b):
     c = a + b
@@ -166,11 +165,11 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 			texto = s.unpack(tcp.recv(4))[0]
 			texto2 = s.unpack(tcp.recv(4))[0]
 			if sync == texto and sync == texto2:
-				length = decode16(tcp.recv(2))
-				chksum = decode16(tcp.recv(2))
-				ID = decode16(con.recv(1))
-				flags = tcp.recv(1)
-				dados = decode16(con.recv(int(length)))
+				length = decodeMessage(tcp.recv(4))
+				chksum = decodeMessage(tcp.recv(4))
+				ID = decodeMessage(con.recv(2))
+				flags = tcp.recv(2)
+				dados = decodeMessage(con.recv(int(length)))
 				frame = Frame(sync, length, chksum, ID, flags, dados)
 				msg = str(sync) + str(sync) + str(length) + str(0000)
 				msg += str(self.ID) + str(self.flags) + str(self.data)
@@ -186,28 +185,25 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 
 def sendFrameClient(tcp, frame):
 	s = struct.Struct('>I')
-
-	tcp.send(s.pack(int(frame.sync)))
-	tcp.send(s.pack(int(frame.sync)))
+	tcp.send(encode16(str(frame.sync)))
+	tcp.send(encode16(str(frame.sync)))
 	tcp.send(encode16(str(frame.length)))
 	tcp.send(encode16(str(frame.chksum)))
-	# tcp.send(encode16(str(frame.ID)))
 	if frame.ID:
 		ID = 1
 	else:
 		ID = 0
-	# print ("ID COM ENCODE",encode16(str(ID)) )
-	tcp.send(encode16(str(ID)))
-	tcp.send(encode16(str(frame.flags)))
+	tcp.send(encode16(ID))
+	tcp.send(encode16(frame.flags.decode('ascii')))
 	tcp.send(encode16(frame.data))
 
 def sendFrameServer(con, frame):
 	s = struct.Struct('>I')
-	tcp.send(s.pack(int(frame.sync)))
-	tcp.send(s.pack(int(frame.sync)))
+	con.send(encode16(frame.sync))
+	con.send(encode16(frame.sync))
 	con.send(encode16(frame.length))
 	con.send(encode16(frame.chksum))
-	con.send(frame.flags)
+	con.send(encode16(frame.flags))
 	con.send(encode16(frame.data))
 
 
@@ -235,14 +231,20 @@ def handler(con, client, OUTPUT):
 	while countFrames < qtd_frames:
 		s = struct.Struct('>I')
 		sync = 3703579586
-		texto = s.unpack(con.recv(4))[0]
-		texto2 = s.unpack(con.recv(4))[0]
+		texto = decodeMessage(con.recv(4))
+		print(texto)
+		texto2 = decodeMessage(con.recv(4))
+		print(texto2)
 		if sync == texto and sync == texto2:
-			length = decode16(con.recv(2))
-			chksum = decode16(con.recv(2))
-			ID = decode16(con.recv(1))
-			flags = decode16(con.recv(1))
-			dados = decode16(con.recv(int(length)))
+			length = decodeMessage(con.recv(4))
+			print(length)
+			chksum = decodeMessage(con.recv(4))
+			print(chksum)
+			ID = decodeMessage(con.recv(2))
+			print(ID)
+			flags = decodeMessage(con.recv(2))
+			print(flags)
+			dados = decodeMessage(con.recv(int(length)))
 			frame = Frame(sync, length, chksum, ID, flags, dados)
 			msg = str(sync) + str(length) + str(0000)
 			msg += str(self.ID) + str(self.flags) + str(self.data)
