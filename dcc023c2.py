@@ -158,21 +158,24 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 
 		sync = "dcc023c2dcc023c2"
 		# Recebe o pacote de ack
-		texto = con.recv(8)
-		if sync == texto:
-			length = decode16(con.recv(2))
-			chksum = decode16(con.recv(2))
-			ID = decode16(con.recv(1))
-			flags = con.recv(1)
-			dados = decode16(con.recv(int(length)))
-			frame = Frame(sync, length, chksum, ID, flags, dados)
-			msg = str(sync) + str(length) + str(0000)
-			msg += str(self.ID) + str(self.flags) + str(self.data)
-			result_check = checksum(msg)
-			# se receber o ack corretamente, envia o proximo frame
-			if result_check == chksum and length == 0 and flags == 0x80 and ID == frames[count].ID :
-				next = True
-				count+=count
+		try:
+			texto = con.recv(8)
+			if sync == texto:
+				length = decode16(con.recv(2))
+				chksum = decode16(con.recv(2))
+				ID = decode16(con.recv(1))
+				flags = con.recv(1)
+				dados = decode16(con.recv(int(length)))
+				frame = Frame(sync, length, chksum, ID, flags, dados)
+				msg = str(sync) + str(length) + str(0000)
+				msg += str(self.ID) + str(self.flags) + str(self.data)
+				result_check = checksum(msg)
+				# se receber o ack corretamente, envia o proximo frame
+				if result_check == chksum and length == 0 and flags == 0x80 and ID == frames[count].ID :
+					next = True
+					count+=count
+		except socket.timeout:
+			print ("Reenviando frame...")
 
 	tcp.close()
 
