@@ -11,6 +11,7 @@ import threading
 # https://www.mkyong.com/python/python-3-convert-string-to-bytes/
 
 sync = 3703579586
+flagACK = 128
 class Frame:
 	sync = None
 	length = None
@@ -155,7 +156,7 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 				msg += str(self.ID) + str(self.flags) + str(self.data)
 				result_check = checksum(msg)
 				# se receber o ack corretamente, envia o proximo frame
-				if result_check == chksum and length == 0 and flags == 0x80 and ID == frames[count].ID :
+				if result_check == chksum and length == 0 and flags == flagACK and ID == frames[count].ID :
 					# next = True
 					count+=count
 		except socket.timeout:
@@ -173,8 +174,8 @@ def sendFrame(tcp, frame):
 	print("len real", frame.length)
 	print("len", padhexa(hex(frame.length), 4)[2:].encode('utf-8'))
 	print("chk", padhexa(hex(frame.chksum), 4)[2:].encode('utf-8'))
-	print("id", hex(int(frame.ID).encode('utf-8')))
-	print("flags", encodeMessage(str(frame.flags)).encode('utf-8'))
+	print("id", padhexa(hex(int(frame.ID)), 2)[2:].encode('utf-8'))
+	print("flags", padhexa(hex(frame.flags), 2)[2:].encode('utf-8'))
 	print("dado", encodeMessage(str(frame.data)).encode('utf-8'))
 	tcp.send(hex(frame.sync).encode('utf-8'))
 	tcp.send(hex(frame.sync).encode('utf-8'))
