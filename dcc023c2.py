@@ -12,6 +12,7 @@ import threading
 
 sync = 3703579586
 flagACK = 128
+flag = 127
 class Frame:
 	sync = None
 	length = None
@@ -59,6 +60,7 @@ def main(argv):
 			startServer(PORT, INPUT, OUTPUT)
 
 def decodeMessage(msg):
+	print("msg pra decodificar", msg)
 	decoded = ''
 	bytes = splitTwoByTwo(msg.upper())
 	for byte in bytes:
@@ -77,7 +79,6 @@ def createFrames(input):
 	new_frame = True
 	ID = 1
 	data = ""
-	flags = 0
 	with open(input) as f:
 		while True:
 			if new_frame:
@@ -88,7 +89,7 @@ def createFrames(input):
 			c = f.read(1)
 			data += c
 			if len(data) == 128:
-				frame = Frame(sync, len(data), 0, ID, flags, data)
+				frame = Frame(sync, len(data), 0, ID, flag, data)
 				frame.calc_chksum()
 				frame_list.append(frame)
 				new_frame = True
@@ -96,7 +97,7 @@ def createFrames(input):
 				print("End of file")
 				break
 	if not new_frame:
-		frame = Frame(sync, len(data), 0, ID, flags, data)
+		frame = Frame(sync, len(data), 0, ID, flag, data)
 		frame.calc_chksum()
 		frame_list.append(frame)
 
@@ -106,7 +107,7 @@ def encode16(c):
 	return base64.b16encode(c.encode('ascii'))
 
 def decode16(c):
-	return base64.b16decode(c.decode('ascii'))
+	return base64.b16decode(c)
 
 def carry_around_add(a, b):
     c = a + b
@@ -137,6 +138,7 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 	count = 0
 	next = True
 	#enviando a quantidade de quadros
+	print("QUANTIDADE DE QUADROS", int(len(frames)))
 	tcp.send(s.pack(int(len(frames))))
 
 	# while(next and count < len(frames)):
@@ -177,12 +179,12 @@ def sendFrame(tcp, frame):
 	print("id", padhexa(hex(int(frame.ID)), 2)[2:].encode('utf-8'))
 	print("flags", padhexa(hex(frame.flags), 2)[2:].encode('utf-8'))
 	print("dado", encodeMessage(str(frame.data)).encode('utf-8'))
-	tcp.send(hex(frame.sync).encode('utf-8'))
-	tcp.send(hex(frame.sync).encode('utf-8'))
-	tcp.send(encodeMessage(str(frame.length)).encode('utf-8'))
-	tcp.send(encodeMessage(str(frame.chksum)).encode('utf-8'))
-	tcp.send(encodeMessage(str(int(frame.ID))).encode('utf-8'))
-	tcp.send(encodeMessage(str(frame.flags)).encode('utf-8'))
+	tcp.send(padhexa(hex(frame.sync), 8)[2:].encode('utf-8'))
+	tcp.send(padhexa(hex(frame.sync), 8)[2:].encode('utf-8'))
+	tcp.send(padhexa(hex(frame.length), 4)[2:].encode('utf-8'))
+	tcp.send(padhexa(hex(frame.chksum), 4)[2:].encode('utf-8'))
+	tcp.send(padhexa(hex(int(frame.ID)), 2)[2:].encode('utf-8'))
+	tcp.send(padhexa(hex(frame.flags), 2)[2:].encode('utf-8'))
 	tcp.send(encodeMessage(str(frame.data)).encode('utf-8'))
 
 def startServer(PORT, INPUT, OUTPUT):
@@ -209,11 +211,12 @@ def handler(con, client, OUTPUT):
 	while countFrames < qtd_frames:
 		s = struct.Struct('>I')
 		print(" ---		Comecando a receber 	---")
-		texto = decodeMessage(con.recv(4))
-		print(texto)
-		texto2 = decodeMessage(con.recv(4))
-		print(texto2)
-		if sync == texto and sync == texto2:
+		sync1 = decodeMessage(con.recv(8).decode('utf-8'))
+		print("Sync1", sync1)
+		sync2 = con.recv(8).decode('utf-8')
+		print("sync2", sync2)
+		break
+		if sync == sync1 and sync2 == texto2:
 			length = decodeMessage(con.recv(4))
 			print(length)
 			chksum = decodeMessage(con.recv(4))
@@ -222,7 +225,7 @@ def handler(con, client, OUTPUT):
 			print(ID)
 			flags = decodeMessage(con.recv(2))
 			print(flags)
-			dados = decodeMessage(con.recv(int(length)))
+			dados = decodeMessage(con.recv(int(length)*2))
 			frame = Frame(sync, length, chksum, ID, flags, dados)
 			msg = str(sync) + str(length) + str(0000)
 			msg += str(self.ID) + str(self.flags) + str(self.data)
