@@ -60,18 +60,17 @@ def main(argv):
 			startServer(PORT, INPUT, OUTPUT)
 
 def decodeMessage(msg):
-	print("msg pra decodificar", msg)
 	decoded = ''
 	bytes = splitTwoByTwo(msg.upper())
 	for byte in bytes:
-		decoded += str(decode16(byte))
-	return decoded
+		decoded += str(decode16(byte))[1:]
+	return decoded.replace("'", "")
 
 def encodeMessage(msg):
 	encoded = ''
 	for c in msg:
 		encoded += str(encode16(c))[1:]
-	return encoded.replace("'", "");
+	return encoded.replace("'", "")
 
 
 def createFrames(input):
@@ -210,34 +209,35 @@ def handler(con, client, OUTPUT):
 	countFrames = 0
 	while countFrames < qtd_frames:
 		s = struct.Struct('>I')
-		print(" ---		Comecando a receber 	---")
-		sync1 = decodeMessage(con.recv(8).decode('utf-8'))
+		print(" ---		Comecando a receber  ----")
+		sync1 =  int(con.recv(8).decode('utf-8'), 16)
 		print("Sync1", sync1)
-		sync2 = con.recv(8).decode('utf-8')
+		sync2 =  int(con.recv(8).decode('utf-8'), 16)
 		print("sync2", sync2)
-		break
-		if sync == sync1 and sync2 == texto2:
-			length = decodeMessage(con.recv(4))
-			print(length)
-			chksum = decodeMessage(con.recv(4))
-			print(chksum)
-			ID = decodeMessage(con.recv(2))
-			print(ID)
-			flags = decodeMessage(con.recv(2))
-			print(flags)
-			dados = decodeMessage(con.recv(int(length)*2))
+		if sync == sync1 and sync2 == sync2:
+			length =  int(con.recv(4).decode('utf-8'), 16)
+			print("len",length)
+			chksum =  int(con.recv(4).decode('utf-8'), 16)
+			print("chk",chksum)
+			ID =  int(con.recv(2).decode('utf-8'), 16)
+			print('id',ID)
+			flags =  int(con.recv(2).decode('utf-8'), 16)
+			print('flags',flags)
+			dados = decodeMessage(con.recv(length*2).decode('utf-8'))
+			print('dado', dados)
 			frame = Frame(sync, length, chksum, ID, flags, dados)
-			msg = str(sync) + str(length) + str(0000)
-			msg += str(self.ID) + str(self.flags) + str(self.data)
+			msg = str(sync) + str(sync) + str(length) + str(0000) + str(ID) + str(flags) + str(dados)
 			result_check = checksum(msg)
+			print('result', result_check)
 			if result_check == chksum and ID != oldID:
 				frames.append(frame)
 				oldID = ID
-				frame = Frame(sync, 0, 0, ID, 0x80, '')
+				frame = Frame(sync, 0, 0, ID, flagACK, '')
 				frame.calc_chksum()
 				countFrames += countFrames
 				sendFrame(con, frame)
-		con.close()
+			break
+	con.close()
 	writeFile(OUTPUT, frames)
 
 def writeFile(output, frames):
