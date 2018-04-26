@@ -10,7 +10,7 @@ import threading
 # https://www.rapidtables.com/convert/number/ascii-hex-bin-dec-converter.html
 # https://www.mkyong.com/python/python-3-convert-string-to-bytes/
 
-
+sync = 3703579586
 class Frame:
 	sync = None
 	length = None
@@ -28,9 +28,9 @@ class Frame:
 		self.data = data
 
 	def calc_chksum(self):
-		msg = str(self.sync) + str(self.sync) + str(self.length) + str(self.chksum)
-		msg += str(self.ID) + str(self.flags) + str(self.data)
+		msg = str(self.sync) + str(self.sync) + str(self.length) + str(self.chksum) + str(self.ID) + str(self.flags) + str(self.data)
 		self.chksum = checksum(msg.encode())
+
 
 def main(argv):
 	opts = None
@@ -57,8 +57,6 @@ def main(argv):
 		else:
 			startServer(PORT, INPUT, OUTPUT)
 
-
-
 def decodeMessage(msg):
 	decoded = ''
 	bytes = splitTwoByTwo(msg.upper())
@@ -66,13 +64,17 @@ def decodeMessage(msg):
 		decoded += str(decode16(byte))
 	return decoded
 
+def encodeMessage(msg):
+	encoded = ''
+	for c in msg:
+		encoded += str(encode16(c))[1:]
+	return encoded.replace("'", "");
+
 
 def createFrames(input):
 	frame_list = []
 	new_frame = True
 	ID = 1
-	sync = 3703579586
-	length = 0
 	data = ""
 	flags = 0
 	with open(input) as f:
@@ -83,20 +85,17 @@ def createFrames(input):
 				new_frame = False
 
 			c = f.read(1)
-			data += c.strip()
-			length += 1
+			data += c
 			if len(data) == 128:
-				frame = Frame(sync, length, 0, ID, flags, data)
+				frame = Frame(sync, len(data), 0, ID, flags, data)
 				frame.calc_chksum()
 				frame_list.append(frame)
 				new_frame = True
-				length = 0
-
 			if not c:
 				print("End of file")
 				break
 	if not new_frame:
-		frame = Frame(sync,length, 0, ID, flags, data)
+		frame = Frame(sync, len(data), 0, ID, flags, data)
 		frame.calc_chksum()
 		frame_list.append(frame)
 
@@ -125,28 +124,14 @@ def splitTwoByTwo(val):
 
 def startClient(IP, PORT, INPUT, OUTPUT):
 	print ("Iniciando o envio de frames")
-	tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # criando socket)
+	tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # criando socket
 	tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 15)
 	tcp.settimeout(1) # timeout em segundos
-	# nao funciona no mac hihihihihi
-	# tcp.setsockopt(socket.SOL_SOCKET, socket.SO_RCVTIMEO, 15)
-
-	#creating frames
+	s = struct.Struct('>I')
+	#criando os frames
 	frames = createFrames(INPUT)
-	print (len(frames))
-	# for frame in frames:
-	# 	print(frame.sync)
-	# 	print(frame.length)
-	# 	print(frame.chksum)
-	# 	print(frame.ID)
-	# 	print(frame.flags)
-	# 	print(frame.data)
-	# 	print('--------')
-
 	dest = (str(IP), int(PORT))
 	tcp.connect(dest) # Conectando
-	s = struct.Struct('>I')
-
 
 	count = 0
 	next = True
@@ -155,13 +140,8 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 
 	# while(next and count < len(frames)):
 	while(next and count < len(frames)):
-		sendFrameClient(tcp, frames[count])
-		# next = False
-
-		sync = 3703579586
-		# Recebe o pacote de ack
+		sendFrame(tcp, frames[count])
 		try:
-			s = struct.Struct('>I')
 			texto = s.unpack(tcp.recv(4))[0]
 			texto2 = s.unpack(tcp.recv(4))[0]
 			if sync == texto and sync == texto2:
@@ -183,30 +163,26 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 
 	tcp.close()
 
-def sendFrameClient(tcp, frame):
-	s = struct.Struct('>I')
-	tcp.send(encode16(str(frame.sync)))
-	tcp.send(encode16(str(frame.sync)))
-	tcp.send(encode16(str(frame.length)))
-	tcp.send(encode16(str(frame.chksum)))
-	if frame.ID:
-		ID = 1
-	else:
-		ID = 0
-	tcp.send(encode16(ID))
-	tcp.send(encode16(frame.flags.decode('ascii')))
-	tcp.send(encode16(frame.data))
+def padhexa(s,qtd):
+    return '0x' + s[2:].zfill(qtd)
 
-def sendFrameServer(con, frame):
-	s = struct.Struct('>I')
-	con.send(encode16(frame.sync))
-	con.send(encode16(frame.sync))
-	con.send(encode16(frame.length))
-	con.send(encode16(frame.chksum))
-	con.send(encode16(frame.flags))
-	con.send(encode16(frame.data))
-
-
+def sendFrame(tcp, frame):
+	print("	--- 	INICIANDO ENVIO 	---")
+	print("sync1", padhexa(hex(frame.sync), 8)[2:].encode('utf-8'))
+	print("sync2", padhexa(hex(frame.sync), 8)[2:].encode('utf-8'))
+	print("len real", frame.length)
+	print("len", padhexa(hex(frame.length), 4)[2:].encode('utf-8'))
+	print("chk", padhexa(hex(frame.chksum), 4)[2:].encode('utf-8'))
+	print("id", hex(int(frame.ID).encode('utf-8')))
+	print("flags", encodeMessage(str(frame.flags)).encode('utf-8'))
+	print("dado", encodeMessage(str(frame.data)).encode('utf-8'))
+	tcp.send(hex(frame.sync).encode('utf-8'))
+	tcp.send(hex(frame.sync).encode('utf-8'))
+	tcp.send(encodeMessage(str(frame.length)).encode('utf-8'))
+	tcp.send(encodeMessage(str(frame.chksum)).encode('utf-8'))
+	tcp.send(encodeMessage(str(int(frame.ID))).encode('utf-8'))
+	tcp.send(encodeMessage(str(frame.flags)).encode('utf-8'))
+	tcp.send(encodeMessage(str(frame.data)).encode('utf-8'))
 
 def startServer(PORT, INPUT, OUTPUT):
 	tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -225,12 +201,13 @@ def startServer(PORT, INPUT, OUTPUT):
 def handler(con, client, OUTPUT):
 	s = struct.Struct('>I')
 	qtd_frames = s.unpack(con.recv(4))[0]
+	print("quantidade de frames", qtd_frames)
 	frames = []
 	oldID = 1
 	countFrames = 0
 	while countFrames < qtd_frames:
 		s = struct.Struct('>I')
-		sync = 3703579586
+		print(" ---		Comecando a receber 	---")
 		texto = decodeMessage(con.recv(4))
 		print(texto)
 		texto2 = decodeMessage(con.recv(4))
@@ -255,7 +232,7 @@ def handler(con, client, OUTPUT):
 				frame = Frame(sync, 0, 0, ID, 0x80, '')
 				frame.calc_chksum()
 				countFrames += countFrames
-				sendFrameServer(con, frame)
+				sendFrame(con, frame)
 		con.close()
 	writeFile(OUTPUT, frames)
 
