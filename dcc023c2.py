@@ -12,7 +12,7 @@ import threading
 
 sync = 3703579586
 flagACK = 128
-flag = 127
+# flag = 127
 class Frame:
 	sync = None
 	length = None
@@ -28,48 +28,23 @@ class Frame:
 		self.ID = ID
 		self.flags = flags
 		self.data = data
-	#
-	# def padhexa(s,qtd):
-	#     return '0x' + s[2:].zfill(qtd)
-	def pad(self,s,qtd):
-	    return s[2:].zfill(qtd)
 
 	def calc_chksum(self):
 
-		msg = padhexa(hex(self.sync), 16)[2:]
-		print ("MSG:",msg)
-		msg += "" + padhexa(hex(self.sync), 16)[2:]
-		print ("MSG:",msg)
-		msg += "" + padhexa(hex(self.length), 16)[2:]
-		print ("MSG:",msg)
-		msg += "" + padhexa(hex(self.chksum), 16)[2:]
-		print ("MSG:",msg)
-		msg += "" + padhexa(hex(int(self.ID)), 8)[2:]
-		print ("MSG:",msg)
-		msg += "" + padhexa(hex(self.flags), 8)[2:]
-		print ("MSG:",msg)
-		msg += "" + encodeMessage(str(self.data))
-		print ("MSG:",msg)
-		print ("TYPE:",type(msg))
+		msg = padhexa(hex(self.sync), 8)[2:]
+		msg += padhexa(hex(self.sync), 8)[2:]
+		msg += padhexa(hex(self.length), 4)[2:]
+		msg += padhexa(hex(self.chksum), 4)[2:]
+		msg += padhexa(hex(int(self.ID)), 2)[2:]
+		msg += padhexa(hex(self.flags), 2)[2:]
+		msg += encodeMessage(str(self.data))
 
-		# msg = str(self.sync)
-		# print ("MSG:",msg)
-		# msg += "" + str(self.sync)
-		# print ("MSG:",msg)
-		# msg += "" + str(self.length)
-		# print ("MSG:",msg)
-		# msg += "" + str(self.chksum)
-		# print ("MSG:",msg)
-		# msg += "" + str(self.ID)
-		# print ("MSG:",msg)
-		# msg += "" + str(self.flags)
-		# print ("MSG:",msg)
-		# msg += "" + str(self.data)
-		# print ("MSG:",msg)
-		# print ("TYPE:",type(msg))
-
-		self.chksum = checksum(msg.encode())
-		print ("CHKSUM:",self.chksum)
+		lista = splitTwoByTwo(msg)
+		lista_int = list()
+		for f in lista:
+			lista_int.append(int(f, 16))
+		self.chksum = checksum(lista_int)
+		print ("CHKSUM:", self.chksum)
 
 
 def main(argv):
@@ -116,6 +91,7 @@ def createFrames(input):
 	new_frame = True
 	ID = 1
 	data = ""
+	flags = 0
 	with open(input) as f:
 		while True:
 			if new_frame:
@@ -126,7 +102,7 @@ def createFrames(input):
 			c = f.read(1)
 			data += c
 			if len(data) == 128:
-				frame = Frame(sync, len(data), 0, ID, flag, data)
+				frame = Frame(sync, len(data), 0, ID, flags, data)
 				frame.calc_chksum()
 				frame_list.append(frame)
 				new_frame = True
@@ -134,7 +110,7 @@ def createFrames(input):
 				print("End of file")
 				break
 	if not new_frame:
-		frame = Frame(sync, len(data), 0, ID, flag, data)
+		frame = Frame(sync, len(data), 0, ID, flags, data)
 		frame.calc_chksum()
 		frame_list.append(frame)
 
@@ -153,7 +129,7 @@ def carry_around_add(a, b):
 def checksum(msg):
     s = 0
     for i in range(0, len(msg) - 1, 2):
-        w =(msg[i])+((msg[i+1])<<8)
+        w =(msg[i]<<8)+((msg[i+1]))
         s = carry_around_add(s, w)
     return~s &0xffff
 
