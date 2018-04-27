@@ -147,13 +147,12 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 	tcp.connect(dest) # Conectando
 
 	count = 0
-	next = True
 	#enviando a quantidade de quadros
 	print("QUANTIDADE DE QUADROS", int(len(frames)))
 	tcp.send(s.pack(int(len(frames))))
 
 	# while(next and count < len(frames)):
-	while(next and count < len(frames)):
+	while(count < len(frames)):
 		sendFrame(tcp, frames[count])
 		try:
 			texto = s.unpack(tcp.recv(4))[0]
@@ -170,7 +169,6 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 				result_check = checksum(msg)
 				# se receber o ack corretamente, envia o proximo frame
 				if result_check == chksum and length == 0 and flags == flagACK and ID == frames[count].ID :
-					# next = True
 					count+=count
 		except socket.timeout:
 			print ("Reenviando frame...")
@@ -242,13 +240,14 @@ def handler(con, client, OUTPUT):
 			result_check = checksum(msg)
 			print('result', result_check)
 			if result_check == chksum and ID != oldID:
+				print("entrou if")
 				frames.append(frame)
 				oldID = ID
 				frame = Frame(sync, 0, 0, ID, flagACK, '')
+				frames.append(frame)
 				frame.calc_chksum()
 				countFrames += countFrames
 				sendFrame(con, frame)
-			break
 	con.close()
 	writeFile(OUTPUT, frames)
 
