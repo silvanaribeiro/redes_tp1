@@ -12,7 +12,7 @@ import threading
 
 sync = 3703579586
 flagACK = 128
-# flag = 127
+flag = 0
 class Frame:
 	sync = None
 	length = None
@@ -30,7 +30,6 @@ class Frame:
 		self.data = data
 
 	def calc_chksum(self):
-
 		msg = padhexa(hex(self.sync), 8)[2:]
 		msg += padhexa(hex(self.sync), 8)[2:]
 		msg += padhexa(hex(self.length), 4)[2:]
@@ -91,7 +90,6 @@ def createFrames(input):
 	new_frame = True
 	ID = 1
 	data = ""
-	flags = 0
 	with open(input) as f:
 		while True:
 			if new_frame:
@@ -102,7 +100,7 @@ def createFrames(input):
 			c = f.read(1)
 			data += c
 			if len(data) == 128:
-				frame = Frame(sync, len(data), 0, ID, flags, data)
+				frame = Frame(sync, len(data), 0, ID, flag, data)
 				frame.calc_chksum()
 				frame_list.append(frame)
 				new_frame = True
@@ -110,7 +108,7 @@ def createFrames(input):
 				print("End of file")
 				break
 	if not new_frame:
-		frame = Frame(sync, len(data), 0, ID, flags, data)
+		frame = Frame(sync, len(data), 0, ID, flag, data)
 		frame.calc_chksum()
 		frame_list.append(frame)
 
