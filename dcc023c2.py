@@ -28,10 +28,48 @@ class Frame:
 		self.ID = ID
 		self.flags = flags
 		self.data = data
+	#
+	# def padhexa(s,qtd):
+	#     return '0x' + s[2:].zfill(qtd)
+	def pad(self,s,qtd):
+	    return s[2:].zfill(qtd)
 
 	def calc_chksum(self):
-		msg = str(self.sync) + str(self.sync) + str(self.length) + str(self.chksum) + str(self.ID) + str(self.flags) + str(self.data)
+
+		msg = padhexa(hex(self.sync), 16)[2:]
+		print ("MSG:",msg)
+		msg += "" + padhexa(hex(self.sync), 16)[2:]
+		print ("MSG:",msg)
+		msg += "" + padhexa(hex(self.length), 16)[2:]
+		print ("MSG:",msg)
+		msg += "" + padhexa(hex(self.chksum), 16)[2:]
+		print ("MSG:",msg)
+		msg += "" + padhexa(hex(int(self.ID)), 8)[2:]
+		print ("MSG:",msg)
+		msg += "" + padhexa(hex(self.flags), 8)[2:]
+		print ("MSG:",msg)
+		msg += "" + encodeMessage(str(self.data))
+		print ("MSG:",msg)
+		print ("TYPE:",type(msg))
+
+		# msg = str(self.sync)
+		# print ("MSG:",msg)
+		# msg += "" + str(self.sync)
+		# print ("MSG:",msg)
+		# msg += "" + str(self.length)
+		# print ("MSG:",msg)
+		# msg += "" + str(self.chksum)
+		# print ("MSG:",msg)
+		# msg += "" + str(self.ID)
+		# print ("MSG:",msg)
+		# msg += "" + str(self.flags)
+		# print ("MSG:",msg)
+		# msg += "" + str(self.data)
+		# print ("MSG:",msg)
+		# print ("TYPE:",type(msg))
+
 		self.chksum = checksum(msg.encode())
+		print ("CHKSUM:",self.chksum)
 
 
 def main(argv):
