@@ -138,6 +138,26 @@ def createFrames(input):
 
 	return frame_list
 
+def receive_frame(con):
+	print(" ---		Comecando a receber  ----")
+	sync1 =  int(con.recv(8).decode('utf-8'), 16)
+	# print("Sync1", sync1)
+	sync2 =  int(con.recv(8).decode('utf-8'), 16)
+	# print("sync2", sync2)
+	print("recebi sync")
+	if sync == sync1 and sync2 == sync2:
+		length =  int(con.recv(4).decode('utf-8'), 16)
+		# print("len",length)
+		chksum =  int(con.recv(4).decode('utf-8'), 16)
+		# print("chk",chksum)
+		ID =  int(con.recv(2).decode('utf-8'), 16)
+		# print('id',ID)
+		flags =  int(con.recv(2).decode('utf-8'), 16)
+		# print('flags',flags)
+		dados = rec_data(con, length)
+		frame = Frame(sync, length, 0, ID, flags, dados)
+	return frame
+
 def startClient(IP, PORT, INPUT, OUTPUT):
 	print ("Iniciando o envio de frames")
 	tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # criando socket
@@ -158,26 +178,43 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 
 	while(count < len(frames)):
 		sendFrame(tcp, frames[count])
+		print("Enviei dado")
 		try:
-			texto = s.unpack(tcp.recv(4))[0]
-			texto2 = s.unpack(tcp.recv(4))[0]
-			if sync == texto and sync == texto2:
-				length = decodeMessage(tcp.recv(4))
-				chksum = decodeMessage(tcp.recv(4))
-				ID = decodeMessage(con.recv(2))
-				flags = tcp.recv(2)
-				dados = decodeMessage(con.recv(int(length)))
-				frame = Frame(sync, length, chksum, ID, flags, dados)
-				msg = str(sync) + str(sync) + str(length) + str(0000)
-				msg += str(self.ID) + str(self.flags) + str(self.data)
-				result_check = checksum(msg)
-				# se receber o ack corretamente, envia o proximo frame
-				if result_check == chksum and length == 0 and flags == flagACK and ID == frames[count].ID :
-					count+=count
+			frame = receive_frame(tcp)
+			msg = str(sync) + str(sync) + str(length) + str(0000) + str(ID) + str(flags) + str(data)
+			result_check = checksum(msg)
+			# se receber o ack corretamente, envia o proximo frame
+			if result_check == chksum and length == 0 and flags == flagACK and ID == frames[count].ID :
+				print("RECEBEU ACK")
+				count+=count
 		except socket.timeout:
 			print ("Reenviando frame...")
 
 	tcp.close()
+
+def rec_data(con, length):
+	print("----- RECEBENDO DADO -----")
+	len = 100
+	passo = 100
+	dado = ''
+	print("length", length)
+	if length*2 >= len:
+		while len <= length*2:
+			print ("len", len)
+			print("length", length)
+			dado += decodeMessage(con.recv(len).decode('utf-8'))
+			print("dado", dado)
+			if len+passo <= length*2:
+				len += passo
+			elif len+passo > length*2:
+				len = length*2 - len
+	else:
+		print ("len", len)
+		print("length", length)
+		dado += decodeMessage(con.recv(length*2).decode('utf-8'))
+		print("dado", dado)
+	return dado
+
 
 def sendFrame(tcp, frame):
 	print("	--- 	INICIANDO ENVIO 	---")
@@ -223,36 +260,23 @@ def handler(con, client, OUTPUT):
 	oldID = 1
 	countFrames = 0
 	while countFrames < qtd_frames:
-		s = struct.Struct('>I')
-		print(" ---		Comecando a receber  ----")
-		sync1 =  int(con.recv(8).decode('utf-8'), 16)
-		# print("Sync1", sync1)
-		sync2 =  int(con.recv(8).decode('utf-8'), 16)
-		# print("sync2", sync2)
-		if sync == sync1 and sync2 == sync2:
-			length =  int(con.recv(4).decode('utf-8'), 16)
-			# print("len",length)
-			chksum =  int(con.recv(4).decode('utf-8'), 16)
-			# print("chk",chksum)
-			ID =  int(con.recv(2).decode('utf-8'), 16)
-			# print('id',ID)
-			flags =  int(con.recv(2).decode('utf-8'), 16)
-			# print('flags',flags)
-			dados = decodeMessage(con.recv(length*2).decode('utf-8'))
-			frame = Frame(sync, length, 0, ID, flags, dados)
+		frame = receive_frame(con)
+		chksum = frame.chksum
+		frame.calc_chksum()
+		print("Frame: ", frame.to_str())
+		print('frame.chksum :', frame.chksum)
+		print('chksum recebido :', chksum)
+		print('ID', frame.ID)
+		print('oldID', oldID)
+		if frame.chksum == chksum and frame.ID != oldID:
+			print("RECEBEU CERTO")
+			frames.append(frame)
+			oldID = ID
+			# sending ack
+			frame = Frame(sync, 0, 0, frame.ID, flagACK, '')
 			frame.calc_chksum()
-			print("Frame: ", frame.to_str())
-			print('frame.chksum :', frame.chksum)
-			print('chksum recebido :', chksum)
-			if frame.chksum == chksum and ID != oldID:
-				print("entrou if")
-				frames.append(frame)
-				oldID = ID
-				frame = Frame(sync, 0, 0, ID, flagACK, '')
-				frames.append(frame)
-				frame.calc_chksum()
-				countFrames += countFrames
-				sendFrame(con, frame)
+			countFrames += countFrames
+			sendFrame(con, frame)
 	con.close()
 	writeFile(OUTPUT, frames)
 
