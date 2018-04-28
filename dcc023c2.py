@@ -29,7 +29,7 @@ class Frame:
 		self.flags = flags
 		self.data = data
 
-	def calc_chksum(self):
+	def to_str(self):
 		msg = padhexa(hex(self.sync), 8)[2:]
 		msg += padhexa(hex(self.sync), 8)[2:]
 		msg += padhexa(hex(self.length), 4)[2:]
@@ -38,13 +38,14 @@ class Frame:
 		msg += padhexa(hex(self.flags), 2)[2:]
 		msg += encodeMessage(str(self.data))
 
-		lista = splitTwoByTwo(msg)
+		return msg
+
+	def calc_chksum(self):
+		lista = splitTwoByTwo(self.to_str())
 		lista_int = list()
 		for f in lista:
 			lista_int.append(int(f, 16))
 		self.chksum = checksum(lista_int)
-		print ("CHKSUM:", self.chksum)
-
 
 def main(argv):
 	opts = None
@@ -71,6 +72,12 @@ def main(argv):
 		else:
 			startServer(PORT, INPUT, OUTPUT)
 
+def decode16(c):
+	return base64.b16decode(c)
+
+def encode16(c):
+	return base64.b16encode(c.encode('ascii'))
+
 def decodeMessage(msg):
 	decoded = ''
 	bytes = splitTwoByTwo(msg.upper())
@@ -84,6 +91,23 @@ def encodeMessage(msg):
 		encoded += str(encode16(c))[1:]
 	return encoded.replace("'", "")
 
+def carry_around_add(a, b):
+    c = a + b
+    return(c &0xffff)+(c >>16)
+
+def checksum(msg):
+    s = 0
+    for i in range(0, len(msg) - 1, 2):
+        w =(msg[i]<<8)+((msg[i+1]))
+        s = carry_around_add(s, w)
+    return~s &0xffff
+
+def splitTwoByTwo(val):
+	args = [iter(val)] * 2
+	return [''.join(k) for k in zip_longest(*args)]
+
+def padhexa(s,qtd):
+    return '0x' + s[2:].zfill(qtd)
 
 def createFrames(input):
 	frame_list = []
@@ -114,27 +138,6 @@ def createFrames(input):
 
 	return frame_list
 
-def encode16(c):
-	return base64.b16encode(c.encode('ascii'))
-
-def decode16(c):
-	return base64.b16decode(c)
-
-def carry_around_add(a, b):
-    c = a + b
-    return(c &0xffff)+(c >>16)
-
-def checksum(msg):
-    s = 0
-    for i in range(0, len(msg) - 1, 2):
-        w =(msg[i]<<8)+((msg[i+1]))
-        s = carry_around_add(s, w)
-    return~s &0xffff
-
-def splitTwoByTwo(val):
-	args = [iter(val)] * 2
-	return [''.join(k) for k in zip_longest(*args)]
-
 def startClient(IP, PORT, INPUT, OUTPUT):
 	print ("Iniciando o envio de frames")
 	tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # criando socket
@@ -152,6 +155,7 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 	tcp.send(s.pack(int(len(frames))))
 
 	# while(next and count < len(frames)):
+
 	while(count < len(frames)):
 		sendFrame(tcp, frames[count])
 		try:
@@ -175,19 +179,19 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 
 	tcp.close()
 
-def padhexa(s,qtd):
-    return '0x' + s[2:].zfill(qtd)
-
 def sendFrame(tcp, frame):
 	print("	--- 	INICIANDO ENVIO 	---")
-	print("sync1", padhexa(hex(frame.sync), 8)[2:].encode('utf-8'))
-	print("sync2", padhexa(hex(frame.sync), 8)[2:].encode('utf-8'))
-	print("len real", frame.length)
-	print("len", padhexa(hex(frame.length), 4)[2:].encode('utf-8'))
-	print("chk", padhexa(hex(frame.chksum), 4)[2:].encode('utf-8'))
-	print("id", padhexa(hex(int(frame.ID)), 2)[2:].encode('utf-8'))
-	print("flags", padhexa(hex(frame.flags), 2)[2:].encode('utf-8'))
-	print("dado", encodeMessage(str(frame.data)).encode('utf-8'))
+	# print("sync1", padhexa(hex(frame.sync), 8)[2:].encode('utf-8'))
+	# print("sync2", padhexa(hex(frame.sync), 8)[2:].encode('utf-8'))
+	# print("len real", frame.length)
+	# print("len", padhexa(hex(frame.length), 4)[2:].encode('utf-8'))
+	# print("chk", padhexa(hex(frame.chksum), 4)[2:].encode('utf-8'))
+	# print("id", padhexa(hex(int(frame.ID)), 2)[2:].encode('utf-8'))
+	# print("flags", padhexa(hex(frame.flags), 2)[2:].encode('utf-8'))
+	# print("dado puro: ", frame.data)
+	# print("dado", encodeMessage(str(frame.data)).encode('utf-8'))
+	print("Frame: ", frame.to_str())
+
 	tcp.send(padhexa(hex(frame.sync), 8)[2:].encode('utf-8'))
 	tcp.send(padhexa(hex(frame.sync), 8)[2:].encode('utf-8'))
 	tcp.send(padhexa(hex(frame.length), 4)[2:].encode('utf-8'))
@@ -195,6 +199,7 @@ def sendFrame(tcp, frame):
 	tcp.send(padhexa(hex(int(frame.ID)), 2)[2:].encode('utf-8'))
 	tcp.send(padhexa(hex(frame.flags), 2)[2:].encode('utf-8'))
 	tcp.send(encodeMessage(str(frame.data)).encode('utf-8'))
+	print ("Frame enviado com sucesso")
 
 def startServer(PORT, INPUT, OUTPUT):
 	tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -221,25 +226,25 @@ def handler(con, client, OUTPUT):
 		s = struct.Struct('>I')
 		print(" ---		Comecando a receber  ----")
 		sync1 =  int(con.recv(8).decode('utf-8'), 16)
-		print("Sync1", sync1)
+		# print("Sync1", sync1)
 		sync2 =  int(con.recv(8).decode('utf-8'), 16)
-		print("sync2", sync2)
+		# print("sync2", sync2)
 		if sync == sync1 and sync2 == sync2:
 			length =  int(con.recv(4).decode('utf-8'), 16)
-			print("len",length)
+			# print("len",length)
 			chksum =  int(con.recv(4).decode('utf-8'), 16)
-			print("chk",chksum)
+			# print("chk",chksum)
 			ID =  int(con.recv(2).decode('utf-8'), 16)
-			print('id',ID)
+			# print('id',ID)
 			flags =  int(con.recv(2).decode('utf-8'), 16)
-			print('flags',flags)
+			# print('flags',flags)
 			dados = decodeMessage(con.recv(length*2).decode('utf-8'))
-			print('dado', dados)
-			frame = Frame(sync, length, chksum, ID, flags, dados)
-			msg = str(sync) + str(sync) + str(length) + str(0000) + str(ID) + str(flags) + str(dados)
-			result_check = checksum(msg)
-			print('result', result_check)
-			if result_check == chksum and ID != oldID:
+			frame = Frame(sync, length, 0, ID, flags, dados)
+			frame.calc_chksum()
+			print("Frame: ", frame.to_str())
+			print('frame.chksum :', frame.chksum)
+			print('chksum recebido :', chksum)
+			if frame.chksum == chksum and ID != oldID:
 				print("entrou if")
 				frames.append(frame)
 				oldID = ID
