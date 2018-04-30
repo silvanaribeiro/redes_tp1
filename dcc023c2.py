@@ -1,10 +1,10 @@
 import socket
+from socket import AF_INET, SOCK_DGRAM
 import struct
 import sys, getopt
 import base64
 from itertools import zip_longest
 import binascii
-import threading
 
 # REFERENCES:
 # https://www.rapidtables.com/convert/number/ascii-hex-bin-dec-converter.html
@@ -143,10 +143,8 @@ def createFrames(input):
 
 def receive_frame(con):
 	sync1 =  int(con.recv(8).decode('ascii'), 16)
-	# print("Sync1", sync1)
 	print("	--- 	RECEBEU FRAME ---")
 	sync2 =  int(con.recv(8).decode('ascii'), 16)
-	# print("sync2", sync2)
 	if sync == sync1 and sync2 == sync2:
 		length =  int(con.recv(4).decode('ascii'), 16)
 		chksum =  int(con.recv(4).decode('ascii'), 16)
@@ -159,72 +157,76 @@ def receive_frame(con):
 def startClient(IP, PORT, INPUT, OUTPUT):
 	tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # criando socket
 	tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 15)
-	# tcp.settimeout(1) # timeout em segundos
+	tcp.settimeout(1) # timeout em segundos
 	s = struct.Struct('>I')
+	writeFile(OUTPUT)
 	#criando os frames
 	frames = createFrames(INPUT)
 	dest = (str(IP), int(PORT))
 	tcp.connect(dest) # Conectando
 
 	print("	--- 	ENVIA FRAME INICIAL	---")
-	sendFrame(tcp, frames[0])
-	print("	--- 	INICIA CONVERSA	---")
-	frame, dadosNonDecoded = receive_frame(tcp)
+	count = 0
+	oldID = 1
+	sendFrame(tcp, frames[count])
 	enviado = False
 	while not enviado:
 		try:
+			frame, dadosNonDecoded = receive_frame(tcp)
+			print ("Frame: ", frame.to_str())
 			if frame.flags == flagACK:
 				chksum = frame.chksum
 				result_check = frame.calc_chksum(dadosNonDecoded)
 				# se receber o ack corretamente, envia o proximo frame
 				if result_check == chksum and frame.length == 0 and frame.flags == flagACK and frame.ID == frames[count].ID :
-					count+=1
 					print("RECEBEU ACK FRAME INICIAL", count)
-					start_conversation(OUTPUT, tcp, frames, 1)
+					count+=1
+					print("	--- 	INICIA CONVERSA	---")
+					start_conversation(OUTPUT, tcp, frames, count, oldID)
 					enviado = True
-		except:
+		except socket.timeout as e:
 			print ("Timeout.Reenviando frame")
+	socket.close()
 
-
-def start_conversation(OUTPUT, socket, frames, count):
-	oldID = 1
+def start_conversation(OUTPUT, tcp, frames, count, oldID):
 	frames_arquivo = []
-	writeFile(OUTPUT)
-	print ("FRAMES: ", len(frames))
-	while True:
-			# agora, volta a enviar seus proprios quadros
+	tcp.settimeout(1) # timeout em segundos
+	loop = True
+	while loop:
+			# envia seus proprios quadros
 			if count < len(frames):
 				print("	--- 	ENVIA FRAME	---")
-				sendFrame(socket, frames[count])
+				sendFrame(tcp, frames[count])
 
 			try:
-				frame, dadosNonDecoded = receive_frame(socket)
+				frame, dadosNonDecoded = receive_frame(tcp)
+				print ("Frame: ", frame.to_str())
+				print ("Flag frame: ", frame.flags)
 				if frame.flags == flagACK:
 					chksum = frame.chksum
 					result_check = frame.calc_chksum(dadosNonDecoded)
 					# se receber o ack corretamente, envia o proximo frame
 					if result_check == chksum and frame.length == 0 and frame.flags == flagACK and frame.ID == frames[count].ID :
+						print("RECEBEU ACK DO FRAME ", count)
 						count+=1
-						print("RECEBEU ACK", count)
+
 				else:
 					new_frame = Frame(frame.sync, frame.length, 0, frame.ID, frame.flags, frame.data)
 					new_frame.calc_chksum()
-					print("Frame: ", frame.to_str())
-					print('new frame.chksum :', new_frame.chksum)
-					print('chksum recebido :', frame.chksum)
 					if frame.chksum == new_frame.chksum and frame.ID != oldID:
 						writeFile(OUTPUT, frame)
 						oldID = new_frame.ID
 						frames_arquivo.append(frame)
 						frame_ack = Frame(sync, 0, 0, frame.ID, flagACK, '')
 						frame_ack.calc_chksum()
-						writeFile(OUTPUT, frame_ack)
+						# writeFile(OUTPUT, frame_ack)
 						# Enviar ack
 						print("	--- 	ENVIA ACK	---")
-						sendFrame(socket, frame_ack)
-			except:
-				print ("Timeout.Reenviando frame")
+						sendFrame(tcp, frame_ack)
+			except socket.timeout as e:
+				print ("Timeout")
 
+	tcp.close()
 
 def rec_data(con, length):
 
@@ -254,26 +256,48 @@ def sendFrame(tcp, frame):
 	print ("Frame enviado com sucesso")
 
 def startServer(PORT, INPUT, OUTPUT):
-	print ("INICIANDO SERVIDOR")
+	# print ("INICIANDO SERVIDOR")
 	tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 15)
+	writeFile(OUTPUT)
 	frames = createFrames(INPUT)
 	orig = ('', int(PORT))
+	oldID = 1
 	tcp.bind(orig)
 	tcp.listen(5)
-	while 1:
-		con, client = tcp.accept() # aceitando a conexao
-		print("	--- 	INICIA CONVERSA	---")
-		t=threading.Thread(target=start_conversation, args=(OUTPUT, con, frames, 0))
-		t.start() # iniciando nova thread que recebe dados do cliente
+	loop = True
+	con, client = tcp.accept() # aceitando a conexao
+	while loop:
+		try:
+			frame, dadosNonDecoded = receive_frame(con)
+			print ("Frame: ", frame.to_str())
+			new_frame = Frame(frame.sync, frame.length, 0, frame.ID, frame.flags, frame.data)
+			new_frame.calc_chksum()
+			print ("chksum antigo: ", frame.chksum )
+			print ("chksum novo: ", new_frame.chksum )
+			if frame.chksum == new_frame.chksum and frame.ID != oldID:
+				writeFile(OUTPUT, frame)
+				oldID = new_frame.ID
+				frame_ack = Frame(sync, 0, 0, frame.ID, flagACK, '')
+				frame_ack.calc_chksum()
+				# Enviar ack
+				print("	--- 	ENVIA PRIMEIRO ACK	---")
+				sendFrame(con, frame_ack)
+			print("	--- 	INICIA CONVERSA	---")
+			start_conversation(OUTPUT, con, frames, 0, oldID)
+			loop = False
+		except Exception as e:
+			print("Unhandled exception", e)
+			loop = False
 	tcp.close()
 
 def writeFile(output, frame = None):
-	print ("Gravando no arquivo")
 	if frame:
+		print ("Gravando no arquivo")
 		file = open(output,"a")
 		file.write(frame.data)
 	else:
+		print ("Limpeza inicial do arquivo")
 		file = open(output,"w")
 	file.close()
 
