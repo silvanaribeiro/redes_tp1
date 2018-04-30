@@ -118,7 +118,7 @@ def createFrames(input):
 	new_frame = True
 	ID = 1
 	data = ""
-	with open(input) as f:
+	with open(input, "rb") as f:
 		while True:
 			if new_frame:
 				data = ""
@@ -126,7 +126,7 @@ def createFrames(input):
 				new_frame = False
 
 			c = f.read(1)
-			data += c
+			data += c.decode('ascii', 'ignore')
 			if len(data) == 128:
 				frame = Frame(sync, len(data), 0, ID, flag, data)
 				frame.calc_chksum()
@@ -157,7 +157,6 @@ def receive_frame(con):
 	return frame, dados
 
 def startClient(IP, PORT, INPUT, OUTPUT):
-	print ("INICIANDO CLIENTE")
 	tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # criando socket
 	tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 15)
 	# tcp.settimeout(1) # timeout em segundos
@@ -228,6 +227,7 @@ def start_conversation(OUTPUT, socket, frames, count):
 
 
 def rec_data(con, length):
+
 	passo = 400
 	dado = ''
 	resto = length*2
