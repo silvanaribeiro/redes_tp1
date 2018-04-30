@@ -86,7 +86,7 @@ def decodeMessage(msg):
 	decoded = ''
 	bytes = splitTwoByTwo(msg.upper())
 	for byte in bytes:
-		decoded += str(decode16(byte))[1:]
+		decoded += decode16(byte).decode('ascii')
 	return decoded.replace("'", "")
 
 def encodeMessage(msg):
@@ -126,7 +126,6 @@ def createFrames(input):
 				new_frame = False
 
 			c = f.read(1)
-			print(c.decode('ascii','ignore'))
 			data += c.decode('ascii', 'ignore')
 			if len(data) == 128:
 				frame = Frame(sync, len(data), 0, ID, flag, data)
@@ -144,15 +143,15 @@ def createFrames(input):
 	return frame_list
 
 def receive_frame(con):
-	sync1 =  int(con.recv(8).decode('utf-8'), 16)
+	sync1 =  int(con.recv(8).decode('ascii'), 16)
 	# print("Sync1", sync1)
-	sync2 =  int(con.recv(8).decode('utf-8'), 16)
+	sync2 =  int(con.recv(8).decode('ascii'), 16)
 	# print("sync2", sync2)
 	if sync == sync1 and sync2 == sync2:
-		length =  int(con.recv(4).decode('utf-8'), 16)
-		chksum =  int(con.recv(4).decode('utf-8'), 16)
-		ID =  int(con.recv(2).decode('utf-8'), 16)
-		flags =  int(con.recv(2).decode('utf-8'), 16)
+		length =  int(con.recv(4).decode('ascii'), 16)
+		chksum =  int(con.recv(4).decode('ascii'), 16)
+		ID =  int(con.recv(2).decode('ascii'), 16)
+		flags =  int(con.recv(2).decode('ascii'), 16)
 		dadosDecoded, dados = rec_data(con, length)
 		frame = Frame(sync, length, chksum, ID, flags, dadosDecoded)
 	return frame, dados
@@ -199,23 +198,23 @@ def rec_data(con, length):
 	resto = length*2
 	while resto != 0:
 		if resto < passo:
-			dado += con.recv(resto).decode('utf-8')
+			dado += con.recv(resto).decode('ascii')
 			resto = 0
 		else:
-			dado += con.recv(passo).decode('utf-8')
+			dado += con.recv(passo).decode('ascii')
 			resto -= passo
 	return decodeMessage(dado), dado
 
 
 def sendFrame(tcp, frame):
 
-	tcp.send(padhexa(hex(frame.sync), 8)[2:].encode('utf-8'))
-	tcp.send(padhexa(hex(frame.sync), 8)[2:].encode('utf-8'))
-	tcp.send(padhexa(hex(frame.length), 4)[2:].encode('utf-8'))
-	tcp.send(padhexa(hex(frame.chksum), 4)[2:].encode('utf-8'))
-	tcp.send(padhexa(hex(int(frame.ID)), 2)[2:].encode('utf-8'))
-	tcp.send(padhexa(hex(frame.flags), 2)[2:].encode('utf-8'))
-	tcp.send(encodeMessage(str(frame.data)).encode('utf-8'))
+	tcp.send(padhexa(hex(frame.sync), 8)[2:].encode('ascii'))
+	tcp.send(padhexa(hex(frame.sync), 8)[2:].encode('ascii'))
+	tcp.send(padhexa(hex(frame.length), 4)[2:].encode('ascii'))
+	tcp.send(padhexa(hex(frame.chksum), 4)[2:].encode('ascii'))
+	tcp.send(padhexa(hex(int(frame.ID)), 2)[2:].encode('ascii'))
+	tcp.send(padhexa(hex(frame.flags), 2)[2:].encode('ascii'))
+	tcp.send(encodeMessage(str(frame.data)).encode('ascii'))
 
 def startServer(PORT, INPUT, OUTPUT):
 	tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -256,7 +255,7 @@ def handler(con, client, OUTPUT):
 
 def writeFile(output, frames):
 	print("Vai escrever arquivo", len(frames))
-	file = open(output,"w", newline="\n")
+	file = open(output,"w")
 	for frame in frames:
 		file.write(frame.data)
 	file.close()
