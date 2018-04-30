@@ -133,7 +133,6 @@ def createFrames(input):
 				frame_list.append(frame)
 				new_frame = True
 			if not c:
-				print("End of file")
 				break
 	if not new_frame:
 		frame = Frame(sync, len(data), 0, ID, flag, data)
@@ -159,37 +158,121 @@ def receive_frame(con):
 def startClient(IP, PORT, INPUT, OUTPUT):
 	tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # criando socket
 	tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 15)
-	tcp.settimeout(1) # timeout em segundos
+	# tcp.settimeout(1) # timeout em segundos
 	s = struct.Struct('>I')
 	#criando os frames
 	frames = createFrames(INPUT)
 	dest = (str(IP), int(PORT))
 	tcp.connect(dest) # Conectando
 
-	count = 0
+	#count = 0
 	#enviando a quantidade de quadros
-	print("QUANTIDADE DE QUADROS", int(len(frames)))
-	tcp.send(s.pack(int(len(frames))))
-
+	# print("QUANTIDADE DE QUADROS", int(len(frames)))
+	# tcp.send(s.pack(int(len(frames))))
 	# while(next and count < len(frames)):
+	# envio primeiro frame para iniciar a conversa
+	print("	--- 	ENVIA FRAME INICIAL	---")
+	sendFrame(tcp, frames[0])
+	print("	--- 	INICIA CONVERSA	---")
+	start_conversation(OUTPUT, tcp, frames, 1)
 
-	while(count < len(frames)):
-		print("count",count)
-		sendFrame(tcp, frames[count])
-		print("Enviei dado")
-		try:
-			frame, dadosNonDecoded = receive_frame(tcp)
-			chksum = frame.chksum
-			result_check = frame.calc_chksum(dadosNonDecoded)
-			# se receber o ack corretamente, envia o proximo frame
-			if result_check == chksum and frame.length == 0 and frame.flags == flagACK and frame.ID == frames[count].ID :
-				count+=1
-				print("RECEBEU ACK", count)
+def start_conversation(OUTPUT, socket, frames, count):
+	oldID = 1
+	frames_arquivo = []
+	print ("FRAMES: ", len(frames))
+	while(count <= len(frames)):
+		# sendFrame(tcp, frames[count])
+		# try:
+		print(" ---		Comecando a receber  ----")
+		sync1 =  int(socket.recv(8).decode('utf-8'), 16)
+		# print("Sync1", sync1)
+		sync2 =  int(socket.recv(8).decode('utf-8'), 16)
+		if sync == sync1 and sync2 == sync2:
+			length =  int(socket.recv(4).decode('utf-8'), 16)
+			# print("len",length)
+			chksum =  int(socket.recv(4).decode('utf-8'), 16)
+			# print("chk",chksum)
+			ID =  int(socket.recv(2).decode('utf-8'), 16)
+			# print('id',ID)
+			flags =  int(socket.recv(2).decode('utf-8'), 16)
+			# print('flags',flags)
+			dados = decodeMessage(socket.recv(length*2).decode('utf-8'))
+			frame = Frame(sync, length, 0, ID, flags, dados)
+			frame.calc_chksum()
+			print("Frame: ", frame.to_str())
+			print('frame.chksum :', frame.chksum)
+			print('chksum recebido :', chksum)
+			if frame.chksum == chksum and ID != oldID:
+				print("entrou if")
+				frames_arquivo.append(frame)
+				oldID = ID
+				frame = Frame(sync, 0, 0, ID, flagACK, '')
+				frames_arquivo.append(frame)
+				frame.calc_chksum()
+				# Enviar ack
+				print("	--- 	ENVIA ACK	---")
+				sendFrame(socket, frame)
+		# agora, volta a enviar seus proprios quadros
+		print("	--- 	ENVIA FRAME	---")
+		if count < len(frames):
+			sendFrame(socket, frames[count])
+			count += count
 
-		except socket.timeout:
-			print ("Reenviando frame...")
+			# print("sync2", sync2)
+			# texto = s.unpack(tcp.recv(4))[0]
+			# texto2 = s.unpack(tcp.recv(4))[0]
+			# if sync == texto and sync == texto2:
+			# 	length = decodeMessage(tcp.recv(4))
+			# 	chksum = decodeMessage(tcp.recv(4))
+			# 	ID = decodeMessage(con.recv(2))
+			# 	flags = tcp.recv(2)
+			# 	dados = decodeMessage(con.recv(int(length)))
+			# 	frame = Frame(sync, length, chksum, ID, flags, dados)
+			# 	msg = str(sync) + str(sync) + str(length) + str(0000)
+			# 	msg += str(self.ID) + str(self.flags) + str(self.data)
+			# 	result_check = checksum(msg)
+			# 	# se receber o ack corretamente, envia o proximo frame
+			# 	if result_check == chksum and length == 0 and flags == flagACK and ID == frames[count].ID :
+			# 		count+=count
+		# except socket.timeout:
+		# 	print ("Reenviando frame...")
 
-	tcp.close()
+	# socket.close()
+	writeFile(OUTPUT, frames_arquivo)
+
+# def startClient(IP, PORT, INPUT, OUTPUT):
+# 	print ("Iniciando o envio de frames")
+# 	tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # criando socket
+# 	tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 15)
+# 	tcp.settimeout(1) # timeout em segundos
+# 	s = struct.Struct('>I')
+# 	#criando os frames
+# 	frames = createFrames(INPUT)
+# 	dest = (str(IP), int(PORT))
+# 	tcp.connect(dest) # Conectando
+#
+# 	count = 0
+# 	#enviando a quantidade de quadros
+# 	print("QUANTIDADE DE QUADROS", int(len(frames)))
+# 	tcp.send(s.pack(int(len(frames))))
+#
+# 	# while(next and count < len(frames)):
+#
+# 	while(count < len(frames)):
+# 		sendFrame(tcp, frames[count])
+# 		print("Enviei dado")
+# 		try:
+# 			frame = receive_frame(tcp)
+# 			msg = str(sync) + str(sync) + str(length) + str(0000) + str(ID) + str(flags) + str(data)
+# 			result_check = checksum(msg)
+# 			# se receber o ack corretamente, envia o proximo frame
+# 			if result_check == chksum and length == 0 and flags == flagACK and ID == frames[count].ID :
+# 				print("RECEBEU ACK")
+# 				count+=count
+# 		except socket.timeout:
+# 			print ("Reenviando frame...")
+#
+# 	tcp.close()
 
 def rec_data(con, length):
 
@@ -217,41 +300,48 @@ def sendFrame(tcp, frame):
 	tcp.send(encodeMessage(str(frame.data)).encode('ascii'))
 
 def startServer(PORT, INPUT, OUTPUT):
+	print ("INICIANDO SERVIDOR")
 	tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 15)
-
+	frames = createFrames(INPUT)
 	orig = ('', int(PORT))
 	tcp.bind(orig)
 	tcp.listen(5)
 	while 1:
 		con, client = tcp.accept() # aceitando a conexao
-		t=threading.Thread(target=handler, args=(con, client, OUTPUT))
+		print("	--- 	INICIA CONVERSA	---")
+		t=threading.Thread(target=start_conversation, args=(OUTPUT, con, frames, 0))
 		t.start() # iniciando nova thread que recebe dados do cliente
 	tcp.close()
 
 
-def handler(con, client, OUTPUT):
-	s = struct.Struct('>I')
-	qtd_frames = s.unpack(con.recv(4))[0]
-	print("quantidade de frames", qtd_frames)
-	frames = []
-	oldID = 1
-	countFrames = 0
-	while countFrames < qtd_frames:
-		frame, dadosNonDecoded = receive_frame(con)
-		chksum = frame.chksum
-		chkCalculado = frame.calc_chksum(dadosNonDecoded)
-		if frame.chksum == chksum and frame.ID != oldID:
-			print("RECEBEU CERTO", countFrames)
-			frames.append(frame)
-			oldID = frame.ID
-			# sending ack
-			frame = Frame(sync, 0, 0, frame.ID, flagACK, '')
-			frame.calc_chksum()
-			countFrames += 1
-			sendFrame(con, frame)
-	con.close()
-	writeFile(OUTPUT, frames)
+# def handler(con, client, OUTPUT):
+# 	s = struct.Struct('>I')
+# 	qtd_frames = s.unpack(con.recv(4))[0]
+# 	print("quantidade de frames", qtd_frames)
+# 	frames = []
+# 	oldID = 1
+# 	countFrames = 0
+# 	while countFrames < qtd_frames:
+# 		frame = receive_frame(con)
+# 		chksum = frame.chksum
+# 		frame.calc_chksum()
+# 		print("Frame: ", frame.to_str())
+# 		print('frame.chksum :', frame.chksum)
+# 		print('chksum recebido :', chksum)
+# 		print('ID', frame.ID)
+# 		print('oldID', oldID)
+# 		if frame.chksum == chksum and frame.ID != oldID:
+# 			print("RECEBEU CERTO")
+# 			frames.append(frame)
+# 			oldID = ID
+# 			# sending ack
+# 			frame = Frame(sync, 0, 0, frame.ID, flagACK, '')
+# 			frame.calc_chksum()
+# 			countFrames += countFrames
+# 			sendFrame(con, frame)
+# 	con.close()
+# 	writeFile(OUTPUT, frames)
 
 def writeFile(output, frames):
 	print("Vai escrever arquivo", len(frames))
