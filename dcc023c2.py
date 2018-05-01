@@ -91,7 +91,7 @@ def decodeMessage(msg):
 	bs = splitTwoByTwo(str(msg.upper())[2:-1])
 	for byte in bs:
 		decoded.extend(decode16(byte))
-	print("OLha msg decoded", decoded)
+	print("OLha msg decoded", decoded, msg)
 	return decoded, msg
 
 def encodeMessage(msg):
@@ -147,24 +147,32 @@ def createFrames(input):
 	return frame_list
 
 def receive_frame(con):
+	frame = Frame(0, 0, 0, 0, 0, '', None)
 	print("VAI RECEBER O FRAME")
-	sync1 =  int(con.recv(8).decode(), 16)
-	print("Sync1", sync1)
-	sync2 =  int(con.recv(8).decode(), 16)
-	print("sync2", sync2)
+	teste1 = con.recv(8)
+	sync1 =  int(teste1.decode(), 16)
+	print("Sync1", sync1, teste1)
+	teste2 = con.recv(8)
+	sync2 =  int(teste2.decode(), 16)
+	print("sync2", sync2, teste2)
 	if sync == sync1 and sync2 == sync2:
 		length =  int(con.recv(4).decode(), 16)
+		print("len", length)
 		chksum =  int(con.recv(4).decode(), 16)
+		print("chk", chksum)
 		ID =  int(con.recv(2).decode(), 16)
+		print("id", ID)
 		flags =  int(con.recv(2).decode(), 16)
+		print("flags", flags)
 		dados, dadosOrig = rec_data(con, length)
+		print("dados", dados, dadosOrig)
 		frame = Frame(sync, length, chksum, ID, flags, dados, dadosOrig)
 	return frame
 
 def startClient(IP, PORT, INPUT, OUTPUT):
 	tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # criando socket
 	tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 15)
-	tcp.settimeout(1) # timeout em segundos
+	tcp.settimeout(20) # timeout em segundos
 	s = struct.Struct('>I')
 	writeFile(OUTPUT)
 	#criando os frames
@@ -197,7 +205,7 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 
 def start_conversation(OUTPUT, tcp, frames, count, oldID):
 	frames_arquivo = []
-	tcp.settimeout(1) # timeout em segundos
+	tcp.settimeout(20) # timeout em segundos
 	loop = True
 	while loop:
 			# envia seus proprios quadros
@@ -207,8 +215,6 @@ def start_conversation(OUTPUT, tcp, frames, count, oldID):
 
 			try:
 				frame = receive_frame(tcp)
-				print ("Frame: ", frame.to_str())
-				print ("Flag frame: ", frame.flags)
 				if frame.flags == flagACK:
 					chksum = frame.chksum
 					result_check = frame.calc_chksum()
@@ -235,21 +241,34 @@ def start_conversation(OUTPUT, tcp, frames, count, oldID):
 	tcp.close()
 
 def rec_data(con, length):
+	print("----------ENTROU REC DATA--------------")
+	print("len", length)
 	passo = 400
 	dado =  bytearray(b'')
-	resto = length*2
+	resto = length
 	while resto != 0:
-		if resto < passo:
+		print("resto", resto)
+		if resto <= passo:
 			dado.extend(con.recv(resto))
+			print("dado no rec", dado)
 			resto = 0
+			break
 		else:
 			dado.extend(con.recv(passo))
+			print("dado no rec", dado)
 			resto -= passo
+	print("dado no rec", dado)
 	return decodeMessage(dado)
 
 
 def sendFrame(tcp, frame):
-
+	print("frame sendo enviado", frame.to_str())
+	print("sync 1", frame.sync, padhexa(hex(frame.sync), 8)[2:].encode())
+	print("sync 2", frame.sync, padhexa(hex(frame.sync), 8)[2:].encode())
+	print("len", frame.length, padhexa(hex(frame.length), 4)[2:].encode())
+	print("chk", padhexa(hex(frame.chksum), 4)[2:].encode())
+	print("id", padhexa(hex(int(frame.ID)), 2)[2:].encode())
+	print("flag", padhexa(hex(frame.flags), 2)[2:].encode())
 	tcp.send(padhexa(hex(frame.sync), 8)[2:].encode())
 	tcp.send(padhexa(hex(frame.sync), 8)[2:].encode())
 	tcp.send(padhexa(hex(frame.length), 4)[2:].encode())
@@ -257,8 +276,11 @@ def sendFrame(tcp, frame):
 	tcp.send(padhexa(hex(int(frame.ID)), 2)[2:].encode())
 	tcp.send(padhexa(hex(frame.flags), 2)[2:].encode())
 	if frame.data != '':
+		print("data", bytes(frame.data))
 		tcp.send(bytes(frame.data))
+
 	else:
+		print("data",''.encode())
 		tcp.send(''.encode())
 
 def startServer(PORT, INPUT, OUTPUT):
@@ -276,11 +298,8 @@ def startServer(PORT, INPUT, OUTPUT):
 	while loop:
 		try:
 			frame = receive_frame(con)
-			print ("Frame: ", frame.to_str())
 			chksum = frame.chksum
 			result_check = frame.calc_chksum()
-			print ("chksum antigo: ", chksum)
-			print ("chksum novo: ", result_check )
 			if result_check == chksum and frame.ID != oldID:
 				writeFile(OUTPUT, frame)
 				oldID = frame.ID
