@@ -42,6 +42,14 @@ class Frame:
 			msg += dadosNonDecoded
 		return msg
 
+	def print(self):
+		print ("Sync: ", self.sync)
+		print ("length: ", str(self.length))
+		print ("chksum: ", str(self.chksum))
+		print ("ID: ", str(self.ID))
+		print ("flags: ", str(self.flags))
+		print ("data: ", self.data)
+
 	def calc_chksum(self, dadosNonDecoded=None):
 		self.chksum = 0
 		lista = splitTwoByTwo(self.to_str(dadosNonDecoded))
@@ -126,7 +134,7 @@ def createFrames(input):
 				new_frame = False
 
 			c = f.read(1)
-			data += c.decode('ascii', 'ignore')
+			data += c.decode('ascii' , 'ignore')
 			if len(data) == 128:
 				frame = Frame(sync, len(data), 0, ID, flag, data)
 				frame.calc_chksum()
@@ -174,6 +182,7 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 		try:
 			frame, dadosNonDecoded = receive_frame(tcp)
 			print ("Frame: ", frame.to_str())
+			frame.print()
 			if frame.flags == flagACK:
 				chksum = frame.chksum
 				result_check = frame.calc_chksum(dadosNonDecoded)
@@ -201,6 +210,7 @@ def start_conversation(OUTPUT, tcp, frames, count, oldID):
 			try:
 				frame, dadosNonDecoded = receive_frame(tcp)
 				print ("Frame: ", frame.to_str())
+				frame.print()
 				print ("Flag frame: ", frame.flags)
 				if frame.flags == flagACK:
 					chksum = frame.chksum
@@ -235,16 +245,17 @@ def rec_data(con, length):
 	resto = length*2
 	while resto != 0:
 		if resto < passo:
-			dado += con.recv(resto).decode('ascii')
+			dado += con.recv(resto)
 			resto = 0
 		else:
-			dado += con.recv(passo).decode('ascii')
+			dado += con.recv(passo)
 			resto -= passo
 	return decodeMessage(dado), dado
 
 
 def sendFrame(tcp, frame):
 	print("Frame: ", frame.to_str())
+	frame.print()
 
 	tcp.send(padhexa(hex(frame.sync), 8)[2:].encode('ascii'))
 	tcp.send(padhexa(hex(frame.sync), 8)[2:].encode('ascii'))
@@ -252,7 +263,8 @@ def sendFrame(tcp, frame):
 	tcp.send(padhexa(hex(frame.chksum), 4)[2:].encode('ascii'))
 	tcp.send(padhexa(hex(int(frame.ID)), 2)[2:].encode('ascii'))
 	tcp.send(padhexa(hex(frame.flags), 2)[2:].encode('ascii'))
-	tcp.send(encodeMessage(str(frame.data)).encode('ascii'))
+	# print("DADO", encodeMessage(str(frame.data)))
+	tcp.send(encodeMessage(str(frame.data)))
 	print ("Frame enviado com sucesso")
 
 def startServer(PORT, INPUT, OUTPUT):
@@ -271,6 +283,7 @@ def startServer(PORT, INPUT, OUTPUT):
 		try:
 			frame, dadosNonDecoded = receive_frame(con)
 			print ("Frame: ", frame.to_str())
+			frame.print()
 			new_frame = Frame(frame.sync, frame.length, 0, frame.ID, frame.flags, frame.data)
 			new_frame.calc_chksum()
 			print ("chksum antigo: ", frame.chksum )
