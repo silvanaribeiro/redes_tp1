@@ -21,38 +21,31 @@ class Frame:
 	flags = None
 	data = None
 
-	def __init__(self, sync, length, chksum, ID, flags, data):
+	def __init__(self, sync, length, chksum, ID, flags, data, dataOrig=None):
 		self.sync = sync
 		self.length = length
 		self.chksum = chksum
 		self.ID = ID
 		self.flags = flags
 		self.data = data
+		self.dataOrig = dataOrig
 
-	def to_str(self, dadosNonDecoded=None):
+	def to_str(self):
 		msg = padhexa(hex(self.sync), 8)[2:]
 		msg += padhexa(hex(self.sync), 8)[2:]
 		msg += padhexa(hex(self.length), 4)[2:]
 		msg += padhexa(hex(self.chksum), 4)[2:]
 		msg += padhexa(hex(int(self.ID)), 2)[2:]
 		msg += padhexa(hex(self.flags), 2)[2:]
-		if not dadosNonDecoded:
-			msg += encodeMessage(str(self.data))
-		else:
-			msg += dadosNonDecoded
+		if self.dataOrig:
+			msg += str(bytes(self.dataOrig))[2:-1]
+		elif self.data != '':
+			msg += str(bytes(self.data))[2:-1]
 		return msg
 
-	def print(self):
-		print ("Sync: ", self.sync)
-		print ("length: ", str(self.length))
-		print ("chksum: ", str(self.chksum))
-		print ("ID: ", str(self.ID))
-		print ("flags: ", str(self.flags))
-		print ("data: ", self.data)
-
-	def calc_chksum(self, dadosNonDecoded=None):
+	def calc_chksum(self):
 		self.chksum = 0
-		lista = splitTwoByTwo(self.to_str(dadosNonDecoded))
+		lista = splitTwoByTwo(self.to_str())
 		lista_int = list()
 		for f in lista:
 			lista_int.append(int(f, 16))
@@ -88,20 +81,22 @@ def decode16(c):
 	return base64.b16decode(c)
 
 def encode16(c):
-	return base64.b16encode(c.encode('ascii'))
+	return base64.b16encode(c)
 
 def decodeMessage(msg):
-	decoded = ''
-	bytes = splitTwoByTwo(msg.upper())
-	for byte in bytes:
-		decoded += decode16(byte).decode('ascii')
-	return decoded.replace("'", "")
+	msg = bytes(msg)
+
+	decoded = bytearray(b'')
+	bs = splitTwoByTwo(str(msg.upper())[2:-1])
+	for byte in bs:
+	       decoded.extend(decode16(byte))
+	return decoded, msg
 
 def encodeMessage(msg):
-	encoded = ''
+	encoded = bytearray(b'')
 	for c in msg:
-		encoded += str(encode16(c))[1:]
-	return encoded.replace("'", "")
+		encoded.extend(encode16(c))
+	return bytes(encoded)
 
 def carry_around_add(a, b):
     c = a + b
@@ -125,16 +120,16 @@ def createFrames(input):
 	frame_list = []
 	new_frame = True
 	ID = 1
-	data = ""
-	with open(input, "rb") as f:
+	data = bytearray(b'')
+	with open(input, "rb+") as f:
 		while True:
 			if new_frame:
-				data = ""
+				data = bytearray(b'')
 				ID = not ID
 				new_frame = False
 
 			c = f.read(1)
-			data += c.decode('ascii' , 'ignore')
+			data.extend(encode16(c))
 			if len(data) == 128:
 				frame = Frame(sync, len(data), 0, ID, flag, data)
 				frame.calc_chksum()
@@ -143,24 +138,26 @@ def createFrames(input):
 			if not c:
 				break
 	if not new_frame:
-		frame = Frame(sync, len(data), 0, ID, flag, data)
+		frame = Frame(sync, len(data), 0, ID, flag, bytes(data))
 		frame.calc_chksum()
 		frame_list.append(frame)
 
 	return frame_list
 
 def receive_frame(con):
-	sync1 =  int(con.recv(8).decode('ascii'), 16)
-	print("	--- 	RECEBEU FRAME ---")
-	sync2 =  int(con.recv(8).decode('ascii'), 16)
+	print("	--- 	RECEBENDO FRAME	---")
+	sync1 =  int(con.recv(8).decode(), 16)
+	print ("Sync1: ", sync1)
+	sync2 =  int(con.recv(8).decode(), 16)
+	print ("Sync2: ", sync1)
 	if sync == sync1 and sync2 == sync2:
-		length =  int(con.recv(4).decode('ascii'), 16)
-		chksum =  int(con.recv(4).decode('ascii'), 16)
-		ID =  int(con.recv(2).decode('ascii'), 16)
-		flags =  int(con.recv(2).decode('ascii'), 16)
-		dadosDecoded, dados = rec_data(con, length)
-		frame = Frame(sync, length, chksum, ID, flags, dadosDecoded)
-	return frame, dados
+		length =  int(con.recv(4).decode(), 16)
+		chksum =  int(con.recv(4).decode(), 16)
+		ID =  int(con.recv(2).decode(), 16)
+		flags =  int(con.recv(2).decode(), 16)
+		dadosDecoded, dadosOrig = rec_data(con, length)
+		frame = Frame(sync, length, chksum, ID, flags, dadosOrig)
+	return frame
 
 def startClient(IP, PORT, INPUT, OUTPUT):
 	tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # criando socket
@@ -180,12 +177,11 @@ def startClient(IP, PORT, INPUT, OUTPUT):
 	enviado = False
 	while not enviado:
 		try:
-			frame, dadosNonDecoded = receive_frame(tcp)
+			frame = receive_frame(tcp)
 			print ("Frame: ", frame.to_str())
-			frame.print()
 			if frame.flags == flagACK:
 				chksum = frame.chksum
-				result_check = frame.calc_chksum(dadosNonDecoded)
+				result_check = frame.calc_chksum()
 				# se receber o ack corretamente, envia o proximo frame
 				if result_check == chksum and frame.length == 0 and frame.flags == flagACK and frame.ID == frames[count].ID :
 					print("RECEBEU ACK FRAME INICIAL", count)
@@ -208,13 +204,12 @@ def start_conversation(OUTPUT, tcp, frames, count, oldID):
 				sendFrame(tcp, frames[count])
 
 			try:
-				frame, dadosNonDecoded = receive_frame(tcp)
+				frame = receive_frame(tcp)
 				print ("Frame: ", frame.to_str())
-				frame.print()
 				print ("Flag frame: ", frame.flags)
 				if frame.flags == flagACK:
 					chksum = frame.chksum
-					result_check = frame.calc_chksum(dadosNonDecoded)
+					result_check = frame.calc_chksum()
 					# se receber o ack corretamente, envia o proximo frame
 					if result_check == chksum and frame.length == 0 and frame.flags == flagACK and frame.ID == frames[count].ID :
 						print("RECEBEU ACK DO FRAME ", count)
@@ -223,6 +218,8 @@ def start_conversation(OUTPUT, tcp, frames, count, oldID):
 				else:
 					new_frame = Frame(frame.sync, frame.length, 0, frame.ID, frame.flags, frame.data)
 					new_frame.calc_chksum()
+					print ("CHKSUM FRAME:", frame.chksum)
+					print ("CHKSUM NEW FRAME:", new_frame.chksum)
 					if frame.chksum == new_frame.chksum and frame.ID != oldID:
 						writeFile(OUTPUT, frame)
 						oldID = new_frame.ID
@@ -241,30 +238,31 @@ def start_conversation(OUTPUT, tcp, frames, count, oldID):
 def rec_data(con, length):
 
 	passo = 400
-	dado = ''
+	dado = bytearray(b'')
 	resto = length*2
 	while resto != 0:
 		if resto < passo:
-			dado += con.recv(resto)
+			dado.extend(con.recv(resto))
 			resto = 0
 		else:
-			dado += con.recv(passo)
+			dado.extend(con.recv(passo))
 			resto -= passo
-	return decodeMessage(dado), dado
+	return decodeMessage(dado)
 
 
 def sendFrame(tcp, frame):
 	print("Frame: ", frame.to_str())
-	frame.print()
 
-	tcp.send(padhexa(hex(frame.sync), 8)[2:].encode('ascii'))
-	tcp.send(padhexa(hex(frame.sync), 8)[2:].encode('ascii'))
-	tcp.send(padhexa(hex(frame.length), 4)[2:].encode('ascii'))
-	tcp.send(padhexa(hex(frame.chksum), 4)[2:].encode('ascii'))
-	tcp.send(padhexa(hex(int(frame.ID)), 2)[2:].encode('ascii'))
-	tcp.send(padhexa(hex(frame.flags), 2)[2:].encode('ascii'))
-	# print("DADO", encodeMessage(str(frame.data)))
-	tcp.send(encodeMessage(str(frame.data)))
+	tcp.send(padhexa(hex(frame.sync), 8)[2:].encode())
+	tcp.send(padhexa(hex(frame.sync), 8)[2:].encode())
+	tcp.send(padhexa(hex(frame.length), 4)[2:].encode())
+	tcp.send(padhexa(hex(frame.chksum), 4)[2:].encode())
+	tcp.send(padhexa(hex(int(frame.ID)), 2)[2:].encode())
+	tcp.send(padhexa(hex(frame.flags), 2)[2:].encode())
+	if frame.data != '':
+		tcp.send(bytes(frame.data))
+	else:
+		tcp.send(''.encode())
 	print ("Frame enviado com sucesso")
 
 def startServer(PORT, INPUT, OUTPUT):
@@ -281,9 +279,8 @@ def startServer(PORT, INPUT, OUTPUT):
 	con, client = tcp.accept() # aceitando a conexao
 	while loop:
 		try:
-			frame, dadosNonDecoded = receive_frame(con)
+			frame = receive_frame(con)
 			print ("Frame: ", frame.to_str())
-			frame.print()
 			new_frame = Frame(frame.sync, frame.length, 0, frame.ID, frame.flags, frame.data)
 			new_frame.calc_chksum()
 			print ("chksum antigo: ", frame.chksum )
@@ -307,11 +304,11 @@ def startServer(PORT, INPUT, OUTPUT):
 def writeFile(output, frame = None):
 	if frame:
 		print ("Gravando no arquivo")
-		file = open(output,"a")
-		file.write(frame.data)
+		file = open(output,"ab")
+		file.write(bytes(frame.data))
 	else:
 		print ("Limpeza inicial do arquivo")
-		file = open(output,"w")
+		file = open(output,"wb")
 	file.close()
 
 if __name__ == "__main__":
