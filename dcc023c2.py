@@ -145,13 +145,13 @@ def createFrames(input):
 		frame_list.append(frame)
 
 	return frame_list
-	
+
 def receive_frame(con):
 	print("VAI RECEBER O FRAME")
 	sync1 =  int(con.recv(8).decode(), 16)
-	# print("Sync1", sync1)
+	print("Sync1", sync1)
 	sync2 =  int(con.recv(8).decode(), 16)
-	# print("sync2", sync2)
+	print("sync2", sync2)
 	if sync == sync1 and sync2 == sync2:
 		length =  int(con.recv(4).decode(), 16)
 		chksum =  int(con.recv(4).decode(), 16)
